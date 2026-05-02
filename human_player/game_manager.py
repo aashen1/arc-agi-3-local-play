@@ -19,6 +19,17 @@ class GameManager:
         self.max_levels = 0
         self._prev_levels_completed = 0
 
+    ACTION_MAP = {
+        "ACTION1": GameAction.ACTION1,
+        "ACTION2": GameAction.ACTION2,
+        "ACTION3": GameAction.ACTION3,
+        "ACTION4": GameAction.ACTION4,
+        "ACTION5": GameAction.ACTION5,
+        "ACTION6": GameAction.ACTION6,
+        "ACTION7": GameAction.ACTION7,
+        "RESET": GameAction.RESET,
+    }
+
     def list_games(self):
         return self.arc.get_environments()
 
@@ -101,6 +112,57 @@ class GameManager:
             self._prev_levels_completed = self.levels_completed
             return True
         return False
+
+    def auto_advance(self, level_actions: dict[int, list[dict]],
+                     on_level_start=None, on_level_done=None,
+                     on_fail=None) -> int:
+        advanced = 0
+        for level_idx in sorted(level_actions.keys()):
+            actions = level_actions[level_idx]
+            if on_level_start:
+                on_level_start(level_idx, len(actions))
+
+            prev_lc = self.levels_completed
+            success = False
+
+            for i, act_info in enumerate(actions):
+                action_name = act_info.get("action", "")
+                action = self.ACTION_MAP.get(action_name)
+                if action is None:
+                    continue
+
+                data = act_info.get("action_data") or None
+                obs = self.execute_action(action, data=data)
+                if obs is None:
+                    if on_fail:
+                        on_fail(level_idx, i, "env returned None")
+                    return advanced
+
+                if obs.state == GameState.GAME_OVER:
+                    if on_fail:
+                        on_fail(level_idx, i, "GAME_OVER during replay")
+                    return advanced
+
+                if self.levels_completed > prev_lc:
+                    success = True
+                    break
+
+            if success:
+                advanced += 1
+                if on_level_done:
+                    on_level_done(level_idx)
+                obs = self.env.reset()
+                if obs:
+                    self._update_from_obs(obs)
+                self.step_count = 0
+                self.level_start_time = time.time()
+            else:
+                if on_fail:
+                    on_fail(level_idx, len(actions),
+                            "replay did not trigger level completion")
+                return advanced
+
+        return advanced
 
     def _update_from_obs(self, obs: FrameDataRaw):
         if hasattr(obs, 'levels_completed') and obs.levels_completed is not None:

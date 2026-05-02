@@ -59,6 +59,22 @@ class LevelManager:
         game = self.get_game_progress(game_id)
         return sum(1 for lv in game.get("levels", {}).values() if lv.get("completed"))
 
+    def get_next_uncompleted_level(self, game_id: str) -> int | None:
+        game = self.get_game_progress(game_id)
+        levels = game.get("levels", {})
+        if not levels:
+            return 0
+        completed_indices = sorted(
+            int(k) for k, v in levels.items() if v.get("completed")
+        )
+        if not completed_indices:
+            return 0
+        next_level = completed_indices[-1] + 1
+        total = game.get("total_levels", 0)
+        if total > 0 and next_level >= total:
+            return None
+        return next_level
+
     def get_total_levels(self, game_id: str) -> int:
         game = self.get_game_progress(game_id)
         return game.get("total_levels", 0)

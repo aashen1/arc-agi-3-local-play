@@ -47,6 +47,21 @@ def main():
             continue
 
         game_id = choice
+
+        completed = level_manager.get_completed_count(game_id)
+        next_level = level_manager.get_next_uncompleted_level(game_id)
+        total = level_manager.get_total_levels(game_id)
+
+        resume_choice = None
+        if completed > 0 and next_level is not None:
+            has_recording = recording_manager.find_best_recording(game_id) is not None
+            resume_choice = menu.show_resume_prompt(
+                game_id, completed, total, next_level, has_recording,
+            )
+
+        if resume_choice is None and completed > 0 and next_level is not None:
+            continue
+
         menu.console.print(f"\n[cyan]正在启动 {game_id}...[/cyan]")
 
         if not game_manager.start_game(game_id):
@@ -54,6 +69,12 @@ def main():
             continue
 
         session_id = recording_manager.start_session(game_id)
+
+        if resume_choice == "continue" and next_level is not None and next_level > 0:
+            _try_auto_advance(
+                game_manager, level_manager, recording_manager,
+                session_id, game_id, next_level,
+            )
 
         try:
             _game_loop(
@@ -68,6 +89,36 @@ def main():
             recording_manager.end_session()
             game_manager.close_game()
             menu.console.print("[dim]已返回主菜单[/dim]\n")
+
+
+def _try_auto_advance(game_manager: GameManager, level_manager: LevelManager,
+                       recording_manager: RecordingManager, session_id: str,
+                       game_id: str, target_level: int):
+    level_actions = recording_manager.extract_winning_sequences(game_id)
+    if not level_actions:
+        menu.console.print("[yellow]未找到可回放的录像，将从第 1 关开始[/yellow]")
+        return
+
+    needed = {k: v for k, v in level_actions.items() if k < target_level}
+    if not needed:
+        menu.console.print("[yellow]录像中无已通关关卡数据，将从第 1 关开始[/yellow]")
+        return
+
+    menu.console.print(f"[cyan]正在回放 {len(needed)} 个已通关关卡...[/cyan]")
+
+    advanced = game_manager.auto_advance(
+        needed,
+        on_level_start=menu.show_auto_advance_progress,
+        on_level_done=menu.show_auto_advance_done,
+        on_fail=menu.show_auto_advance_fail,
+    )
+
+    if advanced > 0:
+        menu.console.print(
+            f"[green]已自动推进 {advanced} 关，当前: 第 {game_manager.levels_completed + 1} 关[/green]"
+        )
+    else:
+        menu.console.print("[yellow]自动推进失败，将从第 1 关开始手动游玩[/yellow]")
 
 
 def _game_loop(game_manager: GameManager, level_manager: LevelManager,

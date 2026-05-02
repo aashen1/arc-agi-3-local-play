@@ -2,15 +2,15 @@ import time
 from arcengine import GameAction, GameState, FrameDataRaw
 import arc_agi
 
-from human_player.config import DEFAULT_RENDER_MODE
+from human_player.config import get_render_mode
 
 
 class GameManager:
-    def __init__(self, render_mode=DEFAULT_RENDER_MODE):
+    def __init__(self, render_mode=None):
         self.arc = arc_agi.Arcade()
         self.env = None
         self.game_id = None
-        self.render_mode = render_mode
+        self.render_mode = render_mode or get_render_mode()
         self.step_count = 0
         self.total_steps = 0
         self.level_start_time = None

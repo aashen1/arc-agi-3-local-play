@@ -1,0 +1,86 @@
+import json
+import os
+from datetime import datetime, timezone
+
+from human_player.config import PROGRESS_FILE, DATA_DIR
+
+
+class LevelManager:
+    def __init__(self):
+        self.progress = self._load_progress()
+
+    def get_game_progress(self, game_id: str) -> dict:
+        games = self.progress.get("games", {})
+        if game_id not in games:
+            return {"game_id": game_id, "levels": {}, "total_levels": 0}
+        return games[game_id]
+
+    def update_level_status(self, game_id: str, level_index: int,
+                            steps: int, time_ms: int):
+        if "games" not in self.progress:
+            self.progress["games"] = {}
+
+        if game_id not in self.progress["games"]:
+            self.progress["games"][game_id] = {
+                "levels": {},
+                "total_levels": 0,
+            }
+
+        game = self.progress["games"][game_id]
+        level_key = str(level_index)
+
+        existing = game["levels"].get(level_key, {})
+        best_steps = existing.get("best_steps")
+        best_time_ms = existing.get("best_time_ms")
+
+        if best_steps is None or steps < best_steps:
+            best_steps = steps
+        if best_time_ms is None or time_ms < best_time_ms:
+            best_time_ms = time_ms
+
+        game["levels"][level_key] = {
+            "completed": True,
+            "best_steps": best_steps,
+            "best_time_ms": best_time_ms,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "attempts": existing.get("attempts", 0) + 1,
+        }
+        self._save_progress()
+
+    def update_total_levels(self, game_id: str, total: int):
+        if "games" not in self.progress:
+            self.progress["games"] = {}
+        if game_id not in self.progress["games"]:
+            self.progress["games"][game_id] = {"levels": {}, "total_levels": 0}
+        self.progress["games"][game_id]["total_levels"] = total
+        self._save_progress()
+
+    def get_completed_count(self, game_id: str) -> int:
+        game = self.get_game_progress(game_id)
+        return sum(1 for lv in game.get("levels", {}).values() if lv.get("completed"))
+
+    def get_total_levels(self, game_id: str) -> int:
+        game = self.get_game_progress(game_id)
+        return game.get("total_levels", 0)
+
+    def get_best_steps(self, game_id: str, level_index: int) -> int | None:
+        game = self.get_game_progress(game_id)
+        level = game.get("levels", {}).get(str(level_index), {})
+        return level.get("best_steps")
+
+    def get_best_time_ms(self, game_id: str, level_index: int) -> int | None:
+        game = self.get_game_progress(game_id)
+        level = game.get("levels", {}).get(str(level_index), {})
+        return level.get("best_time_ms")
+
+    def _load_progress(self) -> dict:
+        if os.path.exists(PROGRESS_FILE):
+            with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {"version": "1.0", "games": {}}
+
+    def _save_progress(self):
+        os.makedirs(os.path.dirname(PROGRESS_FILE), exist_ok=True)
+        self.progress["last_updated"] = datetime.now(timezone.utc).isoformat()
+        with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
+            json.dump(self.progress, f, ensure_ascii=False, indent=2)

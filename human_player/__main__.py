@@ -1,5 +1,6 @@
 import msvcrt
 import os
+import re
 import sys
 import time
 
@@ -14,6 +15,10 @@ from human_player.level_manager import LevelManager
 from human_player.stats_manager import StatsManager
 from human_player.recording import RecordingManager
 from human_player import menu
+from human_player.mouse import (
+    enable_mouse_tracking, disable_mouse_tracking,
+    parse_mouse_event, terminal_to_grid,
+)
 
 
 class GameExitException(Exception):
@@ -110,94 +115,107 @@ def _game_loop(game_manager: GameManager, level_manager: LevelManager,
     game_over_recorded = False
 
     _print_keymap_hint(keymap_scheme)
+    mouse_enabled = enable_mouse_tracking()
+    if mouse_enabled:
+        menu.console.print("[dim]鼠标追踪已启用，点击网格执行 ACTION6[/dim]")
 
-    while True:
-        obs = game_manager.env.observation_space if game_manager.env else None
-        if obs is None:
-            time.sleep(0.05)
-            continue
+    try:
+        while True:
+            obs = game_manager.env.observation_space if game_manager.env else None
+            if obs is None:
+                time.sleep(0.05)
+                continue
 
-        if obs.state == GameState.WIN:
-            _handle_win(
-                game_manager, level_manager, stats_manager,
-                recording_manager, session_id, current_level,
-            )
-            current_level = game_manager.levels_completed
-
-            if game_manager.max_levels > 0 and current_level >= game_manager.max_levels:
-                menu.show_all_complete(
-                    game_manager.game_id,
-                    game_manager.total_steps,
-                    game_manager.get_total_elapsed_ms(),
+            if obs.state == GameState.WIN:
+                _handle_win(
+                    game_manager, level_manager, stats_manager,
+                    recording_manager, session_id, current_level,
                 )
-                time.sleep(2)
+                current_level = game_manager.levels_completed
+
+                if game_manager.max_levels > 0 and current_level >= game_manager.max_levels:
+                    menu.show_all_complete(
+                        game_manager.game_id,
+                        game_manager.total_steps,
+                        game_manager.get_total_elapsed_ms(),
+                    )
+                    time.sleep(2)
+                    raise GameExitException()
+
+                menu.console.print("[dim]进入下一关...[/dim]")
+                time.sleep(0.5)
+                obs = game_manager.env.reset()
+                game_manager.step_count = 0
+                game_manager.level_start_time = time.time()
+                game_over_recorded = False
+                continue
+
+            if obs.state == GameState.GAME_OVER:
+                if not game_over_recorded:
+                    menu.show_game_over(game_manager.step_count)
+                    stats_manager.record_attempt(
+                        game_manager.game_id, current_level,
+                        game_manager.step_count, game_manager.get_elapsed_ms(),
+                        "GAME_OVER", session_id,
+                    )
+                    game_over_recorded = True
+
+            key = _read_key()
+            if key is None:
+                time.sleep(0.02)
+                continue
+
+            if key.startswith('\x1bMOUSE:'):
+                _handle_mouse_click(key, game_manager, recording_manager, session_id)
+                continue
+
+            if key == '\x1b':
                 raise GameExitException()
 
-            menu.console.print("[dim]进入下一关...[/dim]")
-            time.sleep(0.5)
-            obs = game_manager.env.reset()
-            game_manager.step_count = 0
-            game_manager.level_start_time = time.time()
-            game_over_recorded = False
-            continue
+            if key in ('q', 'Q'):
+                raise GameExitException()
 
-        if obs.state == GameState.GAME_OVER:
-            if not game_over_recorded:
-                menu.show_game_over(game_manager.step_count)
-                stats_manager.record_attempt(
-                    game_manager.game_id, current_level,
-                    game_manager.step_count, game_manager.get_elapsed_ms(),
-                    "GAME_OVER", session_id,
-                )
-                game_over_recorded = True
+            if key in ('c', 'C'):
+                _handle_coordinate_input(game_manager, recording_manager, session_id)
+                continue
 
-        key = _read_key()
-        if key is None:
-            time.sleep(0.02)
-            continue
+            if key in ('h', 'H'):
+                _print_keymap_hint(keymap_scheme)
+                continue
 
-        if key in ('q', 'Q'):
-            raise GameExitException()
+            action = None
+            if key in keymap:
+                action = keymap[key]
+            elif key == '\x00' or key == '\xe0':
+                ext = msvcrt.getwch()
+                ext_key = '\x00' + ext
+                if ext_key in keymap:
+                    action = keymap[ext_key]
 
-        if key in ('c', 'C'):
-            _handle_coordinate_input(game_manager, recording_manager, session_id)
-            continue
+            if action is None:
+                continue
 
-        if key in ('h', 'H'):
-            _print_keymap_hint(keymap_scheme)
-            continue
+            available = game_manager.env.action_space if game_manager.env else []
+            if action not in available and action != GameAction.RESET:
+                continue
 
-        action = None
-        if key in keymap:
-            action = keymap[key]
-        elif key == '\x00' or key == '\xe0':
-            ext = msvcrt.getwch()
-            ext_key = '\x00' + ext
-            if ext_key in keymap:
-                action = keymap[ext_key]
+            obs = game_manager.execute_action(action)
 
-        if action is None:
-            continue
-
-        available = game_manager.env.action_space if game_manager.env else []
-        if action not in available and action != GameAction.RESET:
-            continue
-
-        obs = game_manager.execute_action(action)
-
-        recording_manager.record_step(
-            action, None, obs,
-            game_manager.step_count, game_manager.get_elapsed_ms(),
-        )
-
-        if game_manager.did_level_up():
-            current_level = game_manager.levels_completed - 1
-            _handle_win(
-                game_manager, level_manager, stats_manager,
-                recording_manager, session_id, current_level,
+            recording_manager.record_step(
+                action, None, obs,
+                game_manager.step_count, game_manager.get_elapsed_ms(),
             )
-            current_level = game_manager.levels_completed
-            game_over_recorded = False
+
+            if game_manager.did_level_up():
+                current_level = game_manager.levels_completed - 1
+                _handle_win(
+                    game_manager, level_manager, stats_manager,
+                    recording_manager, session_id, current_level,
+                )
+                current_level = game_manager.levels_completed
+                game_over_recorded = False
+    finally:
+        disable_mouse_tracking()
 
 
 def _handle_win(game_manager: GameManager, level_manager: LevelManager,
@@ -220,6 +238,29 @@ def _handle_win(game_manager: GameManager, level_manager: LevelManager,
 
     stats_manager.record_attempt(
         game_manager.game_id, level_index, steps, time_ms, "WIN", session_id,
+    )
+
+
+def _handle_mouse_click(key: str, game_manager: GameManager,
+                        recording_manager: RecordingManager, session_id: str):
+    available = game_manager.env.action_space if game_manager.env else []
+    if GameAction.ACTION6 not in available:
+        return
+
+    try:
+        parts = key.split(':')[1].split(',')
+        col, row = int(parts[0]), int(parts[1])
+    except (IndexError, ValueError):
+        return
+
+    gx, gy = terminal_to_grid(col, row)
+    if not (0 <= gx < 64 and 0 <= gy < 64):
+        return
+
+    obs = game_manager.execute_action(GameAction.ACTION6, data={"x": gx, "y": gy})
+    recording_manager.record_step(
+        GameAction.ACTION6, {"x": gx, "y": gy}, obs,
+        game_manager.step_count, game_manager.get_elapsed_ms(),
     )
 
 
@@ -265,16 +306,66 @@ def _print_keymap_hint(keymap_scheme: str):
     menu.console.print()
 
 
+VT_ARROW_RE = re.compile(r'\x1b\[([ABCD])')
+
+_INPUT_BUF = ''
+
+
 def _read_key() -> str | None:
+    global _INPUT_BUF
     try:
-        if msvcrt.kbhit():
+        while msvcrt.kbhit():
             ch = msvcrt.getwch()
             if ch == '\x03':
                 raise KeyboardInterrupt()
-            return ch
+            _INPUT_BUF += ch
+
+        if not _INPUT_BUF:
+            return None
+
+        if _INPUT_BUF[0] == '\x1b':
+            if len(_INPUT_BUF) >= 3:
+                m = VT_ARROW_RE.match(_INPUT_BUF)
+                if m:
+                    key = _INPUT_BUF[:3]
+                    _INPUT_BUF = _INPUT_BUF[3:]
+                    return key
+                mouse = parse_mouse_event(_INPUT_BUF)
+                if mouse:
+                    _INPUT_BUF = _INPUT_BUF[len(mouse['raw']):]
+                    if not mouse.get('_skip'):
+                        return f'\x1bMOUSE:{mouse["col"]},{mouse["row"]}'
+                    return None
+                _INPUT_BUF = _INPUT_BUF[1:]
+                return '\x1b'
+            elif len(_INPUT_BUF) >= 2 and _INPUT_BUF[1] != '[' and _INPUT_BUF[1] != '<':
+                _INPUT_BUF = _INPUT_BUF[1:]
+                return '\x1b'
+            time.sleep(0.03)
+            if not msvcrt.kbhit():
+                key = _INPUT_BUF[0]
+                _INPUT_BUF = _INPUT_BUF[1:]
+                return key
+            return None
+
+        if _INPUT_BUF[0] == '\x00' or _INPUT_BUF[0] == '\xe0':
+            if len(_INPUT_BUF) >= 2:
+                ext = _INPUT_BUF[1]
+                _INPUT_BUF = _INPUT_BUF[2:]
+                return '\x00' + ext
+            try:
+                ext = msvcrt.getwch()
+                _INPUT_BUF = _INPUT_BUF[1:]
+                return '\x00' + ext
+            except Exception:
+                _INPUT_BUF = _INPUT_BUF[1:]
+                return None
+
+        key = _INPUT_BUF[0]
+        _INPUT_BUF = _INPUT_BUF[1:]
+        return key
     except KeyboardInterrupt:
         raise
-    return None
 
 
 def _ensure_dirs():

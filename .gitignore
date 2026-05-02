@@ -221,6 +221,7 @@ __marimo__/
 
 # arc prize
 environment_files/
+data/
 
 # user settings
 plgd/

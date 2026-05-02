@@ -7,6 +7,7 @@ from arcengine import GameAction, GameState
 
 from human_player.config import (
     KEYMAP_WASD, KEYMAP_ARROWS, DATA_DIR, RECORDS_DIR, RECORDINGS_DIR,
+    get_render_mode, get_fast_render, set_fast_render,
 )
 from human_player.game_manager import GameManager
 from human_player.level_manager import LevelManager
@@ -23,7 +24,8 @@ def main():
     _ensure_dirs()
 
     keymap_scheme = "wasd"
-    game_manager = GameManager()
+    render_mode = get_render_mode()
+    game_manager = GameManager(render_mode=render_mode)
     level_manager = LevelManager()
     stats_manager = StatsManager()
     recording_manager = RecordingManager()
@@ -41,6 +43,13 @@ def main():
             result = menu.show_settings(keymap_scheme)
             if "keymap" in result:
                 keymap_scheme = result["keymap"]
+            if "toggle_render" in result:
+                new_fast = not get_fast_render()
+                set_fast_render(new_fast)
+                render_mode = get_render_mode()
+                game_manager.render_mode = render_mode
+                status = "开启 (terminal-fast)" if new_fast else "关闭 (terminal)"
+                menu.console.print(f"[green]高帧率渲染: {status}[/green]")
             continue
         elif choice == "STATS":
             menu.show_stats(games, level_manager, stats_manager)

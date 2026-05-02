@@ -8,7 +8,7 @@ from rich.text import Text
 from rich.columns import Columns
 from rich import box
 
-from human_player.config import WASD_HELP, ARROW_HELP
+from human_player.config import WASD_HELP, ARROW_HELP, get_fast_render
 
 console = Console()
 
@@ -124,14 +124,18 @@ def show_settings(current_keymap: str) -> dict:
     console.print()
     console.rule("[bold blue]设置", style="blue")
 
+    fast_render = get_fast_render()
+    render_display = "terminal-fast (高帧率)" if fast_render else "terminal (标准)"
+    render_desc = "无帧率限制，渲染更快" if fast_render else "帧率限制，适合人类观看"
+
     table = Table(box=box.ROUNDED, border_style="yellow", show_lines=True)
     table.add_column("选项", style="bold", width=12)
-    table.add_column("当前值", width=20)
+    table.add_column("当前值", width=24)
     table.add_column("说明", style="dim", width=40)
 
     keymap_display = "WASD + Space" if current_keymap == "wasd" else "方向键 + F"
     table.add_row("键位方案", keymap_display, "WASD 或 方向键")
-    table.add_row("渲染模式", "terminal", "内置终端渲染")
+    table.add_row("渲染模式", render_display, render_desc)
 
     console.print(table)
     console.print()
@@ -146,9 +150,14 @@ def show_settings(current_keymap: str) -> dict:
         console.print(f"  [cyan]{k:8s}[/cyan] → {v}")
 
     console.print()
+    console.print("[bold]渲染模式说明:[/bold]")
+    console.print("  [cyan]terminal-fast[/cyan]  无帧率限制，终端渲染速度更快（默认）")
+    console.print("  [cyan]terminal[/cyan]       帧率限制，适合人类实时观看")
+    console.print()
+
     choice = Prompt.ask(
-        "切换键位方案",
-        choices=["w", "a", "q"],
+        "[W]ASD键位 | 方向键[A] | 切换渲染[F] | [Q]返回",
+        choices=["w", "a", "f", "q"],
         default="q",
     )
 
@@ -156,6 +165,8 @@ def show_settings(current_keymap: str) -> dict:
         return {"keymap": "wasd"}
     elif choice == "a":
         return {"keymap": "arrows"}
+    elif choice == "f":
+        return {"toggle_render": True}
     return {}
 
 

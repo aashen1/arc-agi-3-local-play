@@ -230,7 +230,7 @@ def show_all_complete(game_id: str, total_steps: int, total_time_ms: int):
 
 
 def show_resume_prompt(game_id: str, completed: int, total: int,
-                       next_level: int, has_recording: bool) -> str | None:
+                       next_level: int) -> str | None:
     content = Text()
     content.append(f"检测到已有进度: ", style="white")
     bar = _progress_bar(completed, total, width=8) if total > 0 else ""
@@ -240,14 +240,10 @@ def show_resume_prompt(game_id: str, completed: int, total: int,
         content.append(f"✓ {completed} 关\n", style="cyan")
     content.append(f"上次完成到第 {completed} 关，下一关为第 {next_level + 1} 关\n\n", style="white")
 
-    if has_recording:
-        content.append("[C] ", style="bold green")
-        content.append("继续上次 — 自动回放已通关关卡，跳到第 ", style="green")
-        content.append(f"{next_level + 1}", style="bold green")
-        content.append(" 关\n", style="green")
-    else:
-        content.append("[C] ", style="bold yellow")
-        content.append("继续 — 从第 1 关开始（无录像，无法自动跳关）\n", style="yellow")
+    content.append("[C] ", style="bold green")
+    content.append("继续上次 — 直接跳到第 ", style="green")
+    content.append(f"{next_level + 1}", style="bold green")
+    content.append(" 关\n", style="green")
 
     content.append("[N] ", style="bold cyan")
     content.append("从头开始 — 从第 1 关重新打（进度记录保留）\n", style="cyan")
@@ -261,7 +257,7 @@ def show_resume_prompt(game_id: str, completed: int, total: int,
     choice = Prompt.ask(
         "选择",
         choices=choices,
-        default="c" if has_recording else "n",
+        default="c",
     )
 
     if choice == "c":
@@ -269,20 +265,6 @@ def show_resume_prompt(game_id: str, completed: int, total: int,
     elif choice == "n":
         return "new"
     return None
-
-
-def show_auto_advance_progress(level_idx: int, total_actions: int):
-    console.print(f"  [dim]回放关卡 {level_idx + 1}（{total_actions} 步）...[/dim]", end="")
-
-
-def show_auto_advance_done(level_idx: int):
-    console.print(" [green]✓[/green]")
-
-
-def show_auto_advance_fail(level_idx: int, step: int, reason: str):
-    console.print(f" [red]✗[/red]")
-    console.print(f"  [yellow]回放失败（关卡 {level_idx + 1}，第 {step + 1} 步: {reason}）[/yellow]")
-    console.print(f"  [dim]将从当前关卡开始手动游玩[/dim]")
 
 
 def _progress_bar(completed: int, total: int, width: int = 10) -> str:

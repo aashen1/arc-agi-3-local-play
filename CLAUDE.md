@@ -33,6 +33,7 @@
 | [docs/actions-reference.md](docs/actions-reference.md)               | 动作参考手册 — 7 种标准动作、键位映射、复杂动作坐标       |
 | [docs/agent-development.md](docs/agent-development.md)               | 智能体开发指南 — 自定义智能体、LLM 智能体、Swarm 编排  |
 | [docs/rest-api.md](docs/rest-api.md)                                 | REST API 参考 — 端点、认证、会话管理、速率限制      |
+| [docs/api-key-and-leaderboard.md](docs/api-key-and-leaderboard.md)   | API Key 与排行榜 — Key 的作用、安全防护、排行榜机制  |
 | [docs/human-vs-ai.md](docs/human-vs-ai.md)                           | 人机对比框架 — 对比方法论、数据收集、分析维度           |
 
 ## 关键概念速查

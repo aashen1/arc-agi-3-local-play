@@ -1,0 +1,256 @@
+import json
+import os
+import uuid
+from datetime import datetime, timezone
+
+from arcengine import GameAction
+
+from human_player.player_manager import PlayerManager
+
+ACTION_ID_MAP = {
+    GameAction.RESET: 0,
+    GameAction.ACTION1: 1,
+    GameAction.ACTION2: 2,
+    GameAction.ACTION3: 3,
+    GameAction.ACTION4: 4,
+    GameAction.ACTION5: 5,
+    GameAction.ACTION6: 6,
+    GameAction.ACTION7: 7,
+}
+
+
+class OfficialRecordingManager:
+    def __init__(self, player_manager: PlayerManager):
+        self._pm = player_manager
+        self._guid = None
+        self._file = None
+        self._game_id = None
+        self._win_levels = 0
+        self._step_count = 0
+        self._levels_at_start = 0
+        self._prev_levels_completed = 0
+        self._current_level_actions = 0
+        self._actions_by_level = []
+        self._reset_count = 0
+        self._start_time = None
+        self._is_full_reset = False
+
+    @property
+    def is_recording(self) -> bool:
+        return self._file is not None
+
+    def start_session(self, game_id: str, win_levels: int,
+                      levels_at_start: int = 0) -> str:
+        self._guid = str(uuid.uuid4())
+        self._game_id = game_id
+        self._win_levels = win_levels
+        self._step_count = 0
+        self._levels_at_start = levels_at_start
+        self._prev_levels_completed = levels_at_start
+        self._current_level_actions = 0
+        self._actions_by_level = []
+        self._reset_count = 0
+        self._is_full_reset = levels_at_start == 0
+        self._start_time = datetime.now(timezone.utc)
+
+        recordings_dir = self._pm.get_recordings_dir(game_id)
+        filename = f"{game_id}.{self._guid}.recording.jsonl"
+        filepath = os.path.join(recordings_dir, filename)
+        self._file = open(filepath, "w", encoding="utf-8")
+
+        return self._guid
+
+    def record_step(self, action: GameAction, action_data: dict | None,
+                    obs, available_actions: list) -> None:
+        if self._file is None:
+            return
+
+        self._step_count += 1
+        self._current_level_actions += 1
+
+        action_id = ACTION_ID_MAP.get(action, 0)
+
+        action_input_data = {"game_id": self._game_id}
+        if action_data:
+            action_input_data.update(action_data)
+
+        action_input = {
+            "id": action_id,
+            "data": action_input_data,
+            "reasoning": None,
+        }
+
+        frame = self._extract_frame(obs)
+        state = obs.state.name if obs and hasattr(obs, 'state') else "UNKNOWN"
+        levels_completed = getattr(obs, 'levels_completed', self._prev_levels_completed) or 0
+        win_levels = getattr(obs, 'win_levels', self._win_levels) or self._win_levels
+
+        if levels_completed > self._prev_levels_completed:
+            for lvl in range(self._prev_levels_completed, levels_completed):
+                self._actions_by_level.append([lvl + 1, self._step_count])
+            self._prev_levels_completed = levels_completed
+            self._current_level_actions = 0
+
+        if action == GameAction.RESET:
+            self._reset_count += 1
+            if levels_completed == 0 or self._is_full_reset:
+                self._is_full_reset = True
+            else:
+                self._is_full_reset = False
+        else:
+            self._is_full_reset = False
+
+        available_ids = []
+        if available_actions:
+            for a in available_actions:
+                aid = ACTION_ID_MAP.get(a)
+                if aid is not None:
+                    available_ids.append(aid)
+
+        data = {
+            "game_id": self._game_id,
+            "frame": frame,
+            "state": state,
+            "levels_completed": levels_completed,
+            "win_levels": win_levels,
+            "action_input": action_input,
+            "guid": self._guid,
+            "full_reset": self._is_full_reset,
+            "available_actions": available_ids,
+        }
+
+        record = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "data": data,
+        }
+
+        self._file.write(json.dumps(record, ensure_ascii=False) + "\n")
+        self._file.flush()
+
+    def end_session(self, final_state: str) -> None:
+        if self._file is None:
+            return
+
+        won = 1 if final_state == "WIN" else 0
+        levels_completed = self._prev_levels_completed
+
+        if self._current_level_actions > 0 and final_state != "WIN":
+            current_lvl = self._prev_levels_completed + 1
+            self._actions_by_level.append([current_lvl, self._step_count])
+
+        summary = {
+            "won": won,
+            "played": 1,
+            "total_actions": self._step_count,
+            "levels_completed": levels_completed,
+            "cards": {
+                self._game_id: {
+                    "game_id": self._game_id,
+                    "total_plays": 1,
+                    "guids": [self._guid],
+                    "levels_completed": [levels_completed],
+                    "states": [final_state],
+                    "actions": [self._step_count],
+                    "actions_by_level": [self._actions_by_level],
+                    "resets": [self._reset_count],
+                    "total_actions": self._step_count,
+                }
+            },
+        }
+
+        record = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "data": summary,
+        }
+
+        self._file.write(json.dumps(record, ensure_ascii=False) + "\n")
+        self._file.flush()
+        self._file.close()
+        self._file = None
+
+        self._update_index(final_state)
+
+        self._guid = None
+        self._game_id = None
+
+    def get_session_index(self, game_id: str) -> dict:
+        recordings_dir = self._pm.get_recordings_dir(game_id)
+        index_path = os.path.join(recordings_dir, "index.json")
+        if os.path.exists(index_path):
+            with open(index_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {
+            "game_id": game_id,
+            "player": self._pm.get_current_player(),
+            "first_win_index": None,
+            "sessions": [],
+        }
+
+    def list_sessions(self, game_id: str = None) -> list[dict]:
+        if game_id:
+            index = self.get_session_index(game_id)
+            return index.get("sessions", [])
+
+        results = []
+        base_dir = os.path.join(self._pm.get_player_data_dir(), "recordings")
+        if not os.path.exists(base_dir):
+            return results
+        for gid in os.listdir(base_dir):
+            gid_dir = os.path.join(base_dir, gid)
+            if os.path.isdir(gid_dir):
+                index = self.get_session_index(gid)
+                results.extend(index.get("sessions", []))
+        return results
+
+    def _extract_frame(self, obs) -> list:
+        if obs is None:
+            return []
+        frame = getattr(obs, 'frame', None)
+        if frame is None:
+            return []
+        if isinstance(frame, list):
+            if frame and isinstance(frame[0], list) and isinstance(frame[0][0], list):
+                return frame[0]
+            return frame
+        import numpy as np
+        if isinstance(frame, np.ndarray):
+            return frame.tolist()
+        return []
+
+    def _update_index(self, final_state: str) -> None:
+        game_id = self._game_id
+        if game_id is None:
+            return
+
+        recordings_dir = self._pm.get_recordings_dir(game_id)
+        index_path = os.path.join(recordings_dir, "index.json")
+
+        index = self.get_session_index(game_id)
+
+        session_entry = {
+            "guid": self._guid,
+            "filename": f"{game_id}.{self._guid}.recording.jsonl",
+            "started_at": self._start_time.isoformat() if self._start_time else None,
+            "ended_at": datetime.now(timezone.utc).isoformat(),
+            "total_actions": self._step_count,
+            "levels_completed": self._prev_levels_completed,
+            "final_state": final_state,
+            "phase": "learning",
+        }
+
+        sessions = index.get("sessions", [])
+
+        current_index = len(sessions)
+
+        if final_state == "WIN" and index.get("first_win_index") is None:
+            index["first_win_index"] = current_index
+
+        first_win = index.get("first_win_index")
+        if first_win is not None and current_index > first_win:
+            session_entry["phase"] = "practice"
+
+        sessions.append(session_entry)
+        index["sessions"] = sessions
+
+        with open(index_path, "w", encoding="utf-8") as f:
+            json.dump(index, f, ensure_ascii=False, indent=2)

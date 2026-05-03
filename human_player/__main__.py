@@ -8,12 +8,14 @@ from arcengine import GameAction, GameState
 from human_player.config import (
     WINDOW_WIDTH, WINDOW_HEIGHT, FPS,
     get_keymap, get_keymap_scheme, set_keymap_scheme,
-    DATA_DIR, RECORDS_DIR, RECORDINGS_DIR,
+    DATA_DIR, RECORDS_DIR, RECORDINGS_DIR, PLAYERS_DIR,
 )
 from human_player.game_manager import GameManager
 from human_player.level_manager import LevelManager
 from human_player.stats_manager import StatsManager
 from human_player.recording import RecordingManager
+from human_player.official_recording import OfficialRecordingManager
+from human_player.player_manager import PlayerManager
 from human_player.renderer import Renderer
 from human_player.menu import MenuRenderer
 
@@ -29,9 +31,12 @@ def main():
     game_manager = GameManager()
     renderer = Renderer(screen)
     menu_renderer = MenuRenderer(screen)
-    level_manager = LevelManager()
-    stats_manager = StatsManager()
+
+    player_manager = PlayerManager()
+    level_manager = LevelManager(progress_file=player_manager.get_progress_file())
+    stats_manager = StatsManager(records_dir=player_manager.get_records_dir())
     recording_manager = RecordingManager()
+    official_recording = OfficialRecordingManager(player_manager)
 
     state = "MAIN_MENU"
     keymap_scheme = get_keymap_scheme()
@@ -41,6 +46,15 @@ def main():
     game_over_recorded = False
     overlay_state = None
     session_id = None
+    player_input_text = ""
+    player_input_active = False
+
+    def _switch_player(name):
+        nonlocal level_manager, stats_manager, games
+        player_manager.set_player(name)
+        level_manager.set_progress_file(player_manager.get_progress_file())
+        stats_manager.set_records_dir(player_manager.get_records_dir())
+        games = game_manager.list_games()
 
     try:
         while True:
@@ -60,6 +74,10 @@ def main():
                         state = "SETTINGS"
                     elif result == "stats":
                         state = "STATS"
+                    elif result == "player":
+                        state = "PLAYER_SELECT"
+                        player_input_text = ""
+                        player_input_active = False
                     elif isinstance(result, str) and result.startswith("game:"):
                         idx = int(result.split(":")[1])
                         if idx < len(games):
@@ -77,6 +95,12 @@ def main():
                                 game_over_recorded = False
                                 overlay_state = None
                                 session_id = recording_manager.start_session(game_id)
+                                levels_at_start = game_manager.levels_completed
+                                official_recording.start_session(
+                                    game_id,
+                                    game_manager.max_levels,
+                                    levels_at_start,
+                                )
 
                 elif state == "SETTINGS":
                     result = _handle_settings_event(event, menu_renderer, keymap_scheme)
@@ -94,12 +118,39 @@ def main():
                         if btn == "back":
                             state = "MAIN_MENU"
 
+                elif state == "PLAYER_SELECT":
+                    result = _handle_player_event(
+                        event, menu_renderer, player_manager, player_input_text,
+                    )
+                    if result == "back":
+                        state = "MAIN_MENU"
+                    elif result == "create":
+                        name = player_input_text.strip()
+                        if name:
+                            _switch_player(name)
+                            player_input_text = ""
+                            state = "MAIN_MENU"
+                    elif isinstance(result, str) and result.startswith("select:"):
+                        name = result.split(":", 1)[1]
+                        _switch_player(name)
+                        state = "MAIN_MENU"
+                    elif isinstance(result, str) and result.startswith("input:"):
+                        player_input_text = result.split(":", 1)[1]
+                        player_input_active = True
+
                 elif state == "GAME":
                     action_result = _handle_game_event(
                         event, game_manager, renderer,
                     )
                     if action_result == "exit":
+                        final_state = "NOT_FINISHED"
+                        if game_manager.env:
+                            obs = game_manager.env.observation_space
+                            if obs and hasattr(obs, 'state'):
+                                final_state = obs.state.name
                         recording_manager.end_session()
+                        if official_recording.is_recording:
+                            official_recording.end_session(final_state)
                         game_manager.close_game()
                         state = "MAIN_MENU"
                         games = game_manager.list_games()
@@ -113,6 +164,9 @@ def main():
                             recording_manager.record_step(
                                 action, data, obs,
                                 game_manager.step_count, game_manager.get_elapsed_ms(),
+                            )
+                            official_recording.record_step(
+                                action, data, obs, available,
                             )
 
                             if game_manager.did_level_up():
@@ -154,6 +208,8 @@ def main():
                                 game_over_recorded = False
                         elif overlay_state == "all_complete":
                             recording_manager.end_session()
+                            if official_recording.is_recording:
+                                official_recording.end_session("WIN")
                             game_manager.close_game()
                             state = "MAIN_MENU"
                             games = game_manager.list_games()
@@ -162,13 +218,23 @@ def main():
 
             if state == "MAIN_MENU":
                 menu_renderer.handle_main_menu_hover(mouse_pos)
-                menu_renderer.draw_main_menu(games, level_manager, keymap_scheme)
+                menu_renderer.draw_main_menu(
+                    games, level_manager, keymap_scheme,
+                    player_manager.get_current_player(),
+                )
 
             elif state == "SETTINGS":
                 menu_renderer.draw_settings(keymap_scheme)
 
             elif state == "STATS":
                 menu_renderer.draw_stats(games, level_manager, stats_manager)
+
+            elif state == "PLAYER_SELECT":
+                players = player_manager.list_players()
+                menu_renderer.draw_player_select(
+                    players, player_manager.get_current_player(),
+                    player_input_text, player_input_active,
+                )
 
             elif state == "GAME":
                 frame = game_manager.get_current_frame()
@@ -215,6 +281,8 @@ def _handle_menu_event(event, menu_renderer, games):
             return "settings"
         if event.key == pygame.K_v:
             return "stats"
+        if event.key == pygame.K_p:
+            return "player"
         if pygame.K_1 <= event.key <= pygame.K_9:
             idx = event.key - pygame.K_1
             if idx < len(games):
@@ -234,6 +302,26 @@ def _handle_settings_event(event, menu_renderer, keymap_scheme):
             return btn
         if btn == "back":
             return "back"
+    return False
+
+
+def _handle_player_event(event, menu_renderer, player_manager, input_text):
+    players = player_manager.list_players()
+    if event.type == pygame.KEYDOWN:
+        if event.key == pygame.K_ESCAPE:
+            return "back"
+        if event.key == pygame.K_RETURN:
+            return "create"
+        if event.key == pygame.K_BACKSPACE:
+            new_text = input_text[:-1]
+            return f"input:{new_text}"
+        if event.unicode and event.unicode.isprintable() and len(input_text) < 20:
+            new_text = input_text + event.unicode
+            return f"input:{new_text}"
+    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        result = menu_renderer.handle_player_click(event.pos, players)
+        if result:
+            return result
     return False
 
 
@@ -318,7 +406,7 @@ def _handle_win(game_manager, level_manager, stats_manager,
 
 
 def _ensure_dirs():
-    for d in [DATA_DIR, RECORDS_DIR, RECORDINGS_DIR]:
+    for d in [DATA_DIR, RECORDS_DIR, RECORDINGS_DIR, PLAYERS_DIR]:
         os.makedirs(d, exist_ok=True)
 
 

@@ -6,13 +6,18 @@ from human_player.config import RECORDS_DIR
 
 
 class StatsManager:
-    def __init__(self):
+    def __init__(self, records_dir: str = None):
+        self._records_dir = records_dir or RECORDS_DIR
+        self._cache = {}
+
+    def set_records_dir(self, records_dir: str):
+        self._records_dir = records_dir
         self._cache = {}
 
     def record_attempt(self, game_id: str, level_index: int, steps: int,
                        time_ms: int, result: str, session_id: str):
-        os.makedirs(RECORDS_DIR, exist_ok=True)
-        filepath = os.path.join(RECORDS_DIR, f"{game_id}.json")
+        os.makedirs(self._records_dir, exist_ok=True)
+        filepath = os.path.join(self._records_dir, f"{game_id}.json")
 
         records = self._load_records(filepath)
 
@@ -63,7 +68,7 @@ class StatsManager:
     def _get_all_records(self, game_id: str) -> list[dict]:
         if game_id in self._cache:
             return self._cache[game_id]
-        filepath = os.path.join(RECORDS_DIR, f"{game_id}.json")
+        filepath = os.path.join(self._records_dir, f"{game_id}.json")
         records = self._load_records(filepath)
         self._cache[game_id] = records
         return records

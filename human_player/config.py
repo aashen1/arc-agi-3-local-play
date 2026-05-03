@@ -5,6 +5,7 @@ import pygame
 from arcengine import GameAction
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+PLAYERS_DIR = os.path.join(DATA_DIR, "players")
 RECORDS_DIR = os.path.join(DATA_DIR, "records")
 RECORDINGS_DIR = os.path.join(DATA_DIR, "recordings")
 PROGRESS_FILE = os.path.join(DATA_DIR, "progress.json")

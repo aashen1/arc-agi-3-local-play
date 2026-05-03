@@ -18,8 +18,9 @@ class MenuRenderer:
         self.hover_index = -1
         self.game_rects = []
         self.button_rects = {}
+        self.player_rects = []
 
-    def draw_main_menu(self, games, level_manager, keymap_scheme):
+    def draw_main_menu(self, games, level_manager, keymap_scheme, current_player="default"):
         self.screen.fill(COLOR_BG)
         self.game_rects = []
         self.button_rects = {}
@@ -28,6 +29,9 @@ class MenuRenderer:
         subtitle = self.font_medium.render("Human Player Console", True, COLOR_TEXT_DIM)
         self.screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 20))
         self.screen.blit(subtitle, (WINDOW_WIDTH // 2 - subtitle.get_width() // 2, 58))
+
+        player_text = self.font_small.render(f"Player: {current_player}", True, COLOR_HIGHLIGHT)
+        self.screen.blit(player_text, (WINDOW_WIDTH - player_text.get_width() - 12, 10))
 
         y = 100
         for i, game in enumerate(games):
@@ -66,10 +70,12 @@ class MenuRenderer:
             y += 60
 
         btn_y = WINDOW_HEIGHT - 50
-        settings_rect = pygame.Rect(40, btn_y, 120, 36)
-        stats_rect = pygame.Rect(180, btn_y, 120, 36)
+        player_rect = pygame.Rect(40, btn_y, 140, 36)
+        settings_rect = pygame.Rect(200, btn_y, 120, 36)
+        stats_rect = pygame.Rect(340, btn_y, 120, 36)
         quit_rect = pygame.Rect(WINDOW_WIDTH - 160, btn_y, 120, 36)
         self.button_rects = {
+            "player": player_rect,
             "settings": settings_rect,
             "stats": stats_rect,
             "quit": quit_rect,
@@ -78,7 +84,12 @@ class MenuRenderer:
         for name, rect in self.button_rects.items():
             pygame.draw.rect(self.screen, COLOR_PANEL, rect, border_radius=4)
             pygame.draw.rect(self.screen, COLOR_ACCENT, rect, 1, border_radius=4)
-            labels = {"settings": "[S] Settings", "stats": "[V] Stats", "quit": "[Q] Quit"}
+            labels = {
+                "player": "[P] Player",
+                "settings": "[S] Settings",
+                "stats": "[V] Stats",
+                "quit": "[Q] Quit",
+            }
             lbl = self.font_small.render(labels[name], True, COLOR_TEXT)
             self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
                                    rect.y + rect.h // 2 - lbl.get_height() // 2))
@@ -103,6 +114,79 @@ class MenuRenderer:
             if rect.collidepoint(pos):
                 self.hover_index = i
                 break
+
+    def draw_player_select(self, players, current_player, input_text="", input_active=False):
+        self.screen.fill(COLOR_BG)
+        self.button_rects = {}
+        self.player_rects = []
+
+        title = self.font_large.render("Select Player", True, COLOR_ACCENT)
+        self.screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 20))
+
+        current_text = self.font_medium.render(f"Current: {current_player}", True, COLOR_HIGHLIGHT)
+        self.screen.blit(current_text, (60, 65))
+
+        y = 100
+        for i, player in enumerate(players):
+            is_current = player == current_player
+            rect = pygame.Rect(60, y, WINDOW_WIDTH - 120, 40)
+            self.player_rects.append(rect)
+
+            bg = COLOR_ACCENT if is_current else COLOR_PANEL
+            border = COLOR_HIGHLIGHT if is_current else COLOR_ACCENT
+            pygame.draw.rect(self.screen, bg, rect, border_radius=4)
+            pygame.draw.rect(self.screen, border, rect, 1, border_radius=4)
+
+            color = COLOR_BG if is_current else COLOR_TEXT
+            name = self.font_medium.render(player, True, color)
+            self.screen.blit(name, (rect.x + 16, rect.y + rect.h // 2 - name.get_height() // 2))
+
+            if is_current:
+                check = self.font_small.render("<-- active", True, COLOR_HIGHLIGHT)
+                self.screen.blit(check, (rect.right - check.get_width() - 12, rect.y + 12))
+
+            y += 50
+
+        y += 20
+        pygame.draw.line(self.screen, COLOR_TEXT_DIM, (60, y), (WINDOW_WIDTH - 60, y))
+        y += 15
+
+        new_label = self.font_medium.render("New Player Name:", True, COLOR_TEXT)
+        self.screen.blit(new_label, (60, y))
+        y += 25
+
+        input_rect = pygame.Rect(60, y, WINDOW_WIDTH - 180, 36)
+        border_color = COLOR_HIGHLIGHT if input_active else COLOR_ACCENT
+        pygame.draw.rect(self.screen, COLOR_PANEL, input_rect, border_radius=4)
+        pygame.draw.rect(self.screen, border_color, input_rect, 2, border_radius=4)
+
+        display_text = input_text + ("|" if input_active else "")
+        input_render = self.font_medium.render(display_text, True, COLOR_TEXT)
+        self.screen.blit(input_render, (input_rect.x + 10, input_rect.y + 8))
+
+        create_rect = pygame.Rect(WINDOW_WIDTH - 110, y, 90, 36)
+        pygame.draw.rect(self.screen, COLOR_ACCENT, create_rect, border_radius=4)
+        create_lbl = self.font_small.render("Create", True, COLOR_BG)
+        self.screen.blit(create_lbl, (create_rect.x + create_rect.w // 2 - create_lbl.get_width() // 2,
+                                       create_rect.y + create_rect.h // 2 - create_lbl.get_height() // 2))
+        self.button_rects["create"] = create_rect
+
+        back_rect = pygame.Rect(WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT - 50, 120, 36)
+        self.button_rects["back"] = back_rect
+        pygame.draw.rect(self.screen, COLOR_PANEL, back_rect, border_radius=4)
+        pygame.draw.rect(self.screen, COLOR_ACCENT, back_rect, 1, border_radius=4)
+        lbl = self.font_small.render("[ESC] Back", True, COLOR_TEXT)
+        self.screen.blit(lbl, (back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
+                               back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
+
+    def handle_player_click(self, pos, players) -> str | None:
+        for i, rect in enumerate(self.player_rects):
+            if rect.collidepoint(pos) and i < len(players):
+                return f"select:{players[i]}"
+        for name, rect in self.button_rects.items():
+            if rect.collidepoint(pos):
+                return name
+        return None
 
     def draw_stats(self, games, level_manager, stats_manager):
         self.screen.fill(COLOR_BG)
@@ -184,9 +268,6 @@ class MenuRenderer:
         header = self.font_medium.render("Key Bindings:", True, COLOR_ACCENT)
         self.screen.blit(header, (60, y))
         y += 28
-
-        for action in [key_labels[k] for k in key_labels]:
-            pass
 
         from arcengine import GameAction
         for action in [GameAction.ACTION1, GameAction.ACTION2, GameAction.ACTION3,

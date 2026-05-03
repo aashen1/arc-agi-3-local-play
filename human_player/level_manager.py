@@ -6,7 +6,12 @@ from human_player.config import PROGRESS_FILE, DATA_DIR
 
 
 class LevelManager:
-    def __init__(self):
+    def __init__(self, progress_file: str = None):
+        self._progress_file = progress_file or PROGRESS_FILE
+        self.progress = self._load_progress()
+
+    def set_progress_file(self, progress_file: str):
+        self._progress_file = progress_file
         self.progress = self._load_progress()
 
     def get_game_progress(self, game_id: str) -> dict:
@@ -90,13 +95,13 @@ class LevelManager:
         return level.get("best_time_ms")
 
     def _load_progress(self) -> dict:
-        if os.path.exists(PROGRESS_FILE):
-            with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+        if os.path.exists(self._progress_file):
+            with open(self._progress_file, "r", encoding="utf-8") as f:
                 return json.load(f)
         return {"version": "1.0", "games": {}}
 
     def _save_progress(self):
-        os.makedirs(os.path.dirname(PROGRESS_FILE), exist_ok=True)
+        os.makedirs(os.path.dirname(self._progress_file), exist_ok=True)
         self.progress["last_updated"] = datetime.now(timezone.utc).isoformat()
-        with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
+        with open(self._progress_file, "w", encoding="utf-8") as f:
             json.dump(self.progress, f, ensure_ascii=False, indent=2)

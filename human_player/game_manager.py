@@ -74,6 +74,26 @@ class GameManager:
         self.env = None
         self.game_id = None
 
+    def get_available_action_ids(self) -> list[int]:
+        if self.env is None:
+            return []
+        available = self.env.action_space
+        from human_player.official_recording import ACTION_ID_MAP
+        return [ACTION_ID_MAP[a] for a in available if a in ACTION_ID_MAP]
+
+    def get_frame_as_2d_list(self) -> list:
+        obs = self.env.observation_space if self.env else None
+        if obs is None or obs.frame is None:
+            return []
+        frame = obs.frame
+        if isinstance(frame, list):
+            if frame and isinstance(frame[0], list) and isinstance(frame[0][0], list):
+                return frame[0]
+            return frame
+        if isinstance(frame, np.ndarray):
+            return frame.tolist()
+        return []
+
     def get_current_frame(self) -> np.ndarray | None:
         obs = self.env.observation_space if self.env else None
         if obs is None or obs.frame is None:

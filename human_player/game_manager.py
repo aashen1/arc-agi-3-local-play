@@ -20,9 +20,10 @@ class GameManager:
         if is_agent_mode():
             from dotenv import load_dotenv
             load_dotenv()
-            print(f"[GameManager] Agent mode — loading .env, operation_mode={op_mode.name}")
+            print(
+                f"[GameManager] Agent mode — loading .env, operation_mode={op_mode.name}")
         else:
-            print(f"[GameManager] Human mode — forced OFFLINE, skipping .env")
+            print(f"[GameManager] Human mode — operation_mode={op_mode.name}")
 
         self.arc = arc_agi.Arcade(operation_mode=op_mode)
         self.player_mode = player_mode

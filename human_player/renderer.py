@@ -1,0 +1,238 @@
+import numpy as np
+import pygame
+
+from arcengine import GameAction
+
+from human_player.config import (
+    CELL_SIZE, GRID_SIZE, GRID_PIXEL, GRID_OFFSET_X, GRID_OFFSET_Y,
+    HUD_TOP_H, HUD_BOTTOM_H, PANEL_WIDTH, WINDOW_WIDTH, WINDOW_HEIGHT,
+    ARC_PALETTE, COLOR_BG, COLOR_PANEL, COLOR_TEXT, COLOR_TEXT_DIM,
+    COLOR_HIGHLIGHT, COLOR_WIN, COLOR_GAMEOVER, COLOR_ACCENT,
+    ACTION_LABELS, get_key_labels,
+)
+
+
+class Renderer:
+    def __init__(self, screen: pygame.Surface):
+        self.screen = screen
+        self.font_large = pygame.font.SysFont("consolas", 22, bold=True)
+        self.font_medium = pygame.font.SysFont("consolas", 16)
+        self.font_small = pygame.font.SysFont("consolas", 13)
+        self._grid_surface = pygame.Surface((GRID_PIXEL, GRID_PIXEL))
+        self._hover_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        self._hover_surface.fill((255, 255, 255, 60))
+
+    def pixel_to_grid(self, px: int, py: int) -> tuple[int, int] | tuple[None, None]:
+        gx = (px - GRID_OFFSET_X) // CELL_SIZE
+        gy = (py - GRID_OFFSET_Y) // CELL_SIZE
+        if 0 <= gx < GRID_SIZE and 0 <= gy < GRID_SIZE:
+            return gx, gy
+        return None, None
+
+    def draw_frame(self, frame, mouse_grid_pos, step_count, elapsed_ms,
+                   levels_completed, max_levels, available_actions,
+                   keymap_scheme, game_id):
+        self.screen.fill(COLOR_BG)
+        self._draw_grid(frame, mouse_grid_pos)
+        self._draw_hud_top(game_id, levels_completed, max_levels, keymap_scheme)
+        self._draw_panel(step_count, elapsed_ms, available_actions,
+                         keymap_scheme, mouse_grid_pos)
+        self._draw_hud_bottom(available_actions, mouse_grid_pos)
+
+    def _draw_grid(self, frame, mouse_grid_pos):
+        if isinstance(frame, list):
+            grid = np.array(frame[0]) if frame else None
+        else:
+            grid = np.array(frame)
+
+        if grid is None:
+            return
+
+        self._grid_surface.fill(COLOR_BG)
+        for y in range(min(grid.shape[0], GRID_SIZE)):
+            for x in range(min(grid.shape[1], GRID_SIZE)):
+                color_idx = int(grid[y, x])
+                if 0 <= color_idx < len(ARC_PALETTE):
+                    color = ARC_PALETTE[color_idx]
+                else:
+                    color = (255, 0, 255)
+                pygame.draw.rect(
+                    self._grid_surface, color,
+                    (x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE),
+                )
+
+        if mouse_grid_pos and mouse_grid_pos[0] is not None:
+            gx, gy = mouse_grid_pos
+            self._grid_surface.blit(
+                self._hover_surface,
+                (gx * CELL_SIZE, gy * CELL_SIZE),
+            )
+            pygame.draw.rect(
+                self._grid_surface, COLOR_HIGHLIGHT,
+                (gx * CELL_SIZE, gy * CELL_SIZE, CELL_SIZE, CELL_SIZE),
+                1,
+            )
+
+        self.screen.blit(self._grid_surface, (GRID_OFFSET_X, GRID_OFFSET_Y))
+
+    def _draw_hud_top(self, game_id, levels_completed, max_levels, keymap_scheme):
+        bar_rect = pygame.Rect(0, 0, WINDOW_WIDTH, HUD_TOP_H)
+        pygame.draw.rect(self.screen, COLOR_PANEL, bar_rect)
+        pygame.draw.line(self.screen, COLOR_ACCENT, (0, HUD_TOP_H), (WINDOW_WIDTH, HUD_TOP_H))
+
+        title = self.font_large.render("ARC-AGI-3", True, COLOR_ACCENT)
+        self.screen.blit(title, (10, 8))
+
+        scheme_name = "WASD" if keymap_scheme == "wasd" else "Arrows"
+        level_text = f"Lv {levels_completed + 1}"
+        if max_levels > 0:
+            level_text += f"/{max_levels}"
+        info = self.font_medium.render(
+            f"{game_id}  |  {level_text}  |  {scheme_name}", True, COLOR_TEXT,
+        )
+        self.screen.blit(info, (160, 12))
+
+    def _draw_panel(self, step_count, elapsed_ms, available_actions,
+                    keymap_scheme, mouse_grid_pos):
+        panel_x = GRID_PIXEL
+        panel_rect = pygame.Rect(panel_x, HUD_TOP_H, PANEL_WIDTH, GRID_PIXEL)
+        pygame.draw.rect(self.screen, COLOR_PANEL, panel_rect)
+        pygame.draw.line(self.screen, COLOR_ACCENT, (panel_x, HUD_TOP_H), (panel_x, WINDOW_HEIGHT))
+
+        y = HUD_TOP_H + 15
+        x = panel_x + 12
+
+        elapsed_s = elapsed_ms // 1000
+        minutes = elapsed_s // 60
+        seconds = elapsed_s % 60
+
+        self._draw_label_value(x, y, "Steps", str(step_count))
+        y += 28
+        self._draw_label_value(x, y, "Time", f"{minutes:02d}:{seconds:02d}")
+        y += 40
+
+        pygame.draw.line(self.screen, COLOR_TEXT_DIM, (x, y), (x + PANEL_WIDTH - 24, y))
+        y += 12
+
+        label = self.font_medium.render("Actions", True, COLOR_ACCENT)
+        self.screen.blit(label, (x, y))
+        y += 24
+
+        key_labels = get_key_labels()
+        for action in [GameAction.ACTION1, GameAction.ACTION2, GameAction.ACTION3,
+                       GameAction.ACTION4, GameAction.ACTION5, GameAction.ACTION6,
+                       GameAction.ACTION7, GameAction.RESET]:
+            is_available = action in available_actions
+            key_str = key_labels.get(action, "?")
+            action_str = ACTION_LABELS.get(action, action.name)
+            color = COLOR_TEXT if is_available else COLOR_TEXT_DIM
+            text = self.font_small.render(f"[{key_str}] {action_str}", True, color)
+            self.screen.blit(text, (x, y))
+            y += 18
+
+        y += 12
+        pygame.draw.line(self.screen, COLOR_TEXT_DIM, (x, y), (x + PANEL_WIDTH - 24, y))
+        y += 12
+
+        if mouse_grid_pos and mouse_grid_pos[0] is not None:
+            gx, gy = mouse_grid_pos
+            coord_text = self.font_medium.render(f"Cursor: ({gx}, {gy})", True, COLOR_HIGHLIGHT)
+            self.screen.blit(coord_text, (x, y))
+            y += 24
+            if GameAction.ACTION6 in available_actions:
+                hint = self.font_small.render("Click to ACTION6", True, COLOR_TEXT_DIM)
+                self.screen.blit(hint, (x, y))
+        else:
+            coord_text = self.font_medium.render("Cursor: --", True, COLOR_TEXT_DIM)
+            self.screen.blit(coord_text, (x, y))
+
+    def _draw_hud_bottom(self, available_actions, mouse_grid_pos):
+        bar_y = WINDOW_HEIGHT - HUD_BOTTOM_H
+        bar_rect = pygame.Rect(0, bar_y, WINDOW_WIDTH, HUD_BOTTOM_H)
+        pygame.draw.rect(self.screen, COLOR_PANEL, bar_rect)
+        pygame.draw.line(self.screen, COLOR_ACCENT, (0, bar_y), (WINDOW_WIDTH, bar_y))
+
+        hints = "[ESC] Menu  [R] Reset  [Z] Undo"
+        if GameAction.ACTION6 in available_actions:
+            hints += "  [Mouse] Click grid"
+        text = self.font_small.render(hints, True, COLOR_TEXT_DIM)
+        self.screen.blit(text, (10, bar_y + 8))
+
+    def _draw_label_value(self, x, y, label, value):
+        lbl = self.font_small.render(label, True, COLOR_TEXT_DIM)
+        val = self.font_large.render(value, True, COLOR_TEXT)
+        self.screen.blit(lbl, (x, y))
+        self.screen.blit(val, (x + 70, y - 3))
+
+    def draw_overlay_win(self, level_index, steps, time_ms,
+                         best_steps, best_time_ms):
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 140))
+        self.screen.blit(overlay, (0, 0))
+
+        box_w, box_h = 360, 180
+        box_x = (WINDOW_WIDTH - box_w) // 2
+        box_y = (WINDOW_HEIGHT - box_h) // 2
+        pygame.draw.rect(self.screen, (30, 50, 30), (box_x, box_y, box_w, box_h), border_radius=8)
+        pygame.draw.rect(self.screen, COLOR_WIN, (box_x, box_y, box_w, box_h), 2, border_radius=8)
+
+        title = self.font_large.render(f"Level {level_index + 1} Complete!", True, COLOR_WIN)
+        self.screen.blit(title, (box_x + 20, box_y + 20))
+
+        elapsed_s = time_ms // 1000
+        info = self.font_medium.render(f"Steps: {steps}  Time: {elapsed_s // 60:02d}:{elapsed_s % 60:02d}", True, COLOR_TEXT)
+        self.screen.blit(info, (box_x + 20, box_y + 60))
+
+        if best_steps and steps <= best_steps:
+            record = self.font_medium.render("New Record!", True, COLOR_HIGHLIGHT)
+            self.screen.blit(record, (box_x + 20, box_y + 90))
+        elif best_steps:
+            best = self.font_small.render(f"Best: {best_steps} steps", True, COLOR_TEXT_DIM)
+            self.screen.blit(best, (box_x + 20, box_y + 92))
+
+        hint = self.font_small.render("Press any key to continue...", True, COLOR_TEXT_DIM)
+        self.screen.blit(hint, (box_x + 20, box_y + box_h - 30))
+
+    def draw_overlay_game_over(self, step_count):
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 140))
+        self.screen.blit(overlay, (0, 0))
+
+        box_w, box_h = 320, 140
+        box_x = (WINDOW_WIDTH - box_w) // 2
+        box_y = (WINDOW_HEIGHT - box_h) // 2
+        pygame.draw.rect(self.screen, (50, 30, 30), (box_x, box_y, box_w, box_h), border_radius=8)
+        pygame.draw.rect(self.screen, COLOR_GAMEOVER, (box_x, box_y, box_w, box_h), 2, border_radius=8)
+
+        title = self.font_large.render("GAME OVER", True, COLOR_GAMEOVER)
+        self.screen.blit(title, (box_x + 20, box_y + 20))
+
+        info = self.font_medium.render(f"Steps: {step_count}", True, COLOR_TEXT)
+        self.screen.blit(info, (box_x + 20, box_y + 55))
+
+        hint = self.font_small.render("[R] Reset  [ESC] Menu", True, COLOR_TEXT_DIM)
+        self.screen.blit(hint, (box_x + 20, box_y + box_h - 30))
+
+    def draw_overlay_all_complete(self, game_id, total_steps, total_time_ms):
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 160))
+        self.screen.blit(overlay, (0, 0))
+
+        box_w, box_h = 400, 180
+        box_x = (WINDOW_WIDTH - box_w) // 2
+        box_y = (WINDOW_HEIGHT - box_h) // 2
+        pygame.draw.rect(self.screen, (30, 50, 30), (box_x, box_y, box_w, box_h), border_radius=8)
+        pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, (box_x, box_y, box_w, box_h), 2, border_radius=8)
+
+        title = self.font_large.render("ALL LEVELS COMPLETE!", True, COLOR_HIGHLIGHT)
+        self.screen.blit(title, (box_x + 20, box_y + 20))
+
+        elapsed_s = total_time_ms // 1000
+        info = self.font_medium.render(
+            f"Game: {game_id}  Steps: {total_steps}  Time: {elapsed_s // 60:02d}:{elapsed_s % 60:02d}",
+            True, COLOR_TEXT,
+        )
+        self.screen.blit(info, (box_x + 20, box_y + 60))
+
+        hint = self.font_small.render("Press any key to return to menu...", True, COLOR_TEXT_DIM)
+        self.screen.blit(hint, (box_x + 20, box_y + box_h - 30))

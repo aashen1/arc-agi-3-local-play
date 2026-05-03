@@ -1,233 +1,309 @@
-import msvcrt
 import os
-import re
 import sys
 import time
 
+import pygame
 from arcengine import GameAction, GameState
 
 from human_player.config import (
-    KEYMAP_WASD, KEYMAP_ARROWS, DATA_DIR, RECORDS_DIR, RECORDINGS_DIR,
-    get_render_mode, get_fast_render, set_fast_render,
+    WINDOW_WIDTH, WINDOW_HEIGHT, FPS,
+    get_keymap, get_keymap_scheme, set_keymap_scheme,
+    DATA_DIR, RECORDS_DIR, RECORDINGS_DIR,
 )
 from human_player.game_manager import GameManager
 from human_player.level_manager import LevelManager
 from human_player.stats_manager import StatsManager
 from human_player.recording import RecordingManager
-from human_player import menu
-from human_player.mouse import (
-    enable_mouse_tracking, disable_mouse_tracking,
-    parse_mouse_event, terminal_to_grid,
-)
-
-
-class GameExitException(Exception):
-    pass
+from human_player.renderer import Renderer
+from human_player.menu import MenuRenderer
 
 
 def main():
     _ensure_dirs()
 
-    keymap_scheme = "wasd"
-    render_mode = get_render_mode()
-    game_manager = GameManager(render_mode=render_mode)
+    pygame.init()
+    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+    pygame.display.set_caption("ARC-AGI-3 Human Player")
+    clock = pygame.time.Clock()
+
+    game_manager = GameManager()
+    renderer = Renderer(screen)
+    menu_renderer = MenuRenderer(screen)
     level_manager = LevelManager()
     stats_manager = StatsManager()
     recording_manager = RecordingManager()
 
-    while True:
-        menu.show_banner()
-        games = game_manager.list_games()
+    state = "MAIN_MENU"
+    keymap_scheme = get_keymap_scheme()
+    games = game_manager.list_games()
 
-        choice = menu.show_game_list(games, level_manager)
-
-        if choice is None:
-            menu.console.print("[dim]再见！[/dim]")
-            break
-        elif choice == "SETTINGS":
-            result = menu.show_settings(keymap_scheme)
-            if "keymap" in result:
-                keymap_scheme = result["keymap"]
-            if "toggle_render" in result:
-                new_fast = not get_fast_render()
-                set_fast_render(new_fast)
-                render_mode = get_render_mode()
-                game_manager.render_mode = render_mode
-                status = "开启 (terminal-fast)" if new_fast else "关闭 (terminal)"
-                menu.console.print(f"[green]高帧率渲染: {status}[/green]")
-            continue
-        elif choice == "STATS":
-            menu.show_stats(games, level_manager, stats_manager)
-            continue
-
-        game_id = choice
-
-        completed = level_manager.get_completed_count(game_id)
-        next_level = level_manager.get_next_uncompleted_level(game_id)
-        total = level_manager.get_total_levels(game_id)
-
-        resume_choice = None
-        if completed > 0 and next_level is not None:
-            resume_choice = menu.show_resume_prompt(
-                game_id, completed, total, next_level,
-            )
-
-        if resume_choice is None and completed > 0 and next_level is not None:
-            continue
-
-        menu.console.print(f"\n[cyan]正在启动 {game_id}...[/cyan]")
-
-        if not game_manager.start_game(game_id):
-            menu.console.print(f"[red]启动游戏 {game_id} 失败[/red]")
-            continue
-
-        session_id = recording_manager.start_session(game_id)
-
-        if resume_choice == "continue" and next_level is not None and next_level > 0:
-            if game_manager.jump_to_level(next_level):
-                menu.console.print(
-                    f"[green]已跳至第 {next_level + 1} 关（已完成前 {next_level} 关）[/green]"
-                )
-            else:
-                menu.console.print("[yellow]跳关失败，将从第 1 关开始[/yellow]")
-
-        try:
-            _game_loop(
-                game_manager, level_manager, stats_manager,
-                recording_manager, keymap_scheme, session_id,
-            )
-        except GameExitException:
-            pass
-        except KeyboardInterrupt:
-            menu.console.print("\n[yellow]中断，正在保存...[/yellow]")
-        finally:
-            recording_manager.end_session()
-            game_manager.close_game()
-            menu.console.print("[dim]已返回主菜单[/dim]\n")
-
-
-def _game_loop(game_manager: GameManager, level_manager: LevelManager,
-               stats_manager: StatsManager, recording_manager: RecordingManager,
-               keymap_scheme: str, session_id: str):
-
-    keymap = KEYMAP_WASD if keymap_scheme == "wasd" else KEYMAP_ARROWS
-    current_level = game_manager.levels_completed
+    current_level = 0
     game_over_recorded = False
-
-    _print_keymap_hint(keymap_scheme)
-    mouse_enabled = enable_mouse_tracking()
-    if mouse_enabled:
-        menu.console.print("[dim]鼠标追踪已启用，点击网格执行 ACTION6[/dim]")
+    overlay_state = None
+    session_id = None
 
     try:
         while True:
-            obs = game_manager.env.observation_space if game_manager.env else None
-            if obs is None:
-                time.sleep(0.05)
-                continue
+            mouse_pos = pygame.mouse.get_pos()
 
-            if obs.state == GameState.WIN:
-                _handle_win(
-                    game_manager, level_manager, stats_manager,
-                    recording_manager, session_id, current_level,
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+
+                if state == "MAIN_MENU":
+                    result = _handle_menu_event(event, menu_renderer, games)
+                    if result is None:
+                        pygame.quit()
+                        sys.exit()
+                    elif result == "settings":
+                        state = "SETTINGS"
+                    elif result == "stats":
+                        state = "STATS"
+                    elif isinstance(result, str) and result.startswith("game:"):
+                        idx = int(result.split(":")[1])
+                        if idx < len(games):
+                            game_id = games[idx].game_id
+                            resume = _check_resume(
+                                game_id, level_manager, menu_renderer, screen, clock,
+                            )
+                            if resume is None:
+                                continue
+                            if _start_game(
+                                game_id, resume, game_manager, level_manager,
+                            ):
+                                state = "GAME"
+                                current_level = game_manager.levels_completed
+                                game_over_recorded = False
+                                overlay_state = None
+                                session_id = recording_manager.start_session(game_id)
+
+                elif state == "SETTINGS":
+                    result = _handle_settings_event(event, menu_renderer, keymap_scheme)
+                    if result == "back":
+                        state = "MAIN_MENU"
+                    elif result in ("wasd", "arrows"):
+                        keymap_scheme = result
+                        set_keymap_scheme(result)
+
+                elif state == "STATS":
+                    if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                        state = "MAIN_MENU"
+                    if event.type == pygame.MOUSEBUTTONDOWN:
+                        btn = menu_renderer.handle_button_click(event.pos)
+                        if btn == "back":
+                            state = "MAIN_MENU"
+
+                elif state == "GAME":
+                    action_result = _handle_game_event(
+                        event, game_manager, renderer,
+                    )
+                    if action_result == "exit":
+                        recording_manager.end_session()
+                        game_manager.close_game()
+                        state = "MAIN_MENU"
+                        games = game_manager.list_games()
+                        continue
+
+                    if action_result and overlay_state is None:
+                        action, data = action_result
+                        available = game_manager.env.action_space if game_manager.env else []
+                        if action in available or action == GameAction.RESET:
+                            obs = game_manager.execute_action(action, data)
+                            recording_manager.record_step(
+                                action, data, obs,
+                                game_manager.step_count, game_manager.get_elapsed_ms(),
+                            )
+
+                            if game_manager.did_level_up():
+                                current_level = game_manager.levels_completed - 1
+                                _handle_win(
+                                    game_manager, level_manager, stats_manager,
+                                    session_id, current_level,
+                                )
+                                current_level = game_manager.levels_completed
+                                game_over_recorded = False
+
+                            if obs and obs.state == GameState.WIN:
+                                overlay_state = "win"
+                            elif obs and obs.state == GameState.GAME_OVER:
+                                if not game_over_recorded:
+                                    stats_manager.record_attempt(
+                                        game_manager.game_id, current_level,
+                                        game_manager.step_count, game_manager.get_elapsed_ms(),
+                                        "GAME_OVER", session_id,
+                                    )
+                                    game_over_recorded = True
+                                overlay_state = "game_over"
+
+                    if overlay_state and event.type == pygame.KEYDOWN:
+                        if overlay_state == "win":
+                            if (game_manager.max_levels > 0
+                                    and game_manager.levels_completed >= game_manager.max_levels):
+                                overlay_state = "all_complete"
+                            else:
+                                overlay_state = None
+                                game_manager.env.reset()
+                                game_manager.step_count = 0
+                                game_manager.level_start_time = time.time()
+                                game_over_recorded = False
+                        elif overlay_state == "game_over":
+                            if event.key == pygame.K_r:
+                                overlay_state = None
+                                game_manager.reset_level()
+                                game_over_recorded = False
+                        elif overlay_state == "all_complete":
+                            recording_manager.end_session()
+                            game_manager.close_game()
+                            state = "MAIN_MENU"
+                            games = game_manager.list_games()
+                            overlay_state = None
+                            continue
+
+            if state == "MAIN_MENU":
+                menu_renderer.handle_main_menu_hover(mouse_pos)
+                menu_renderer.draw_main_menu(games, level_manager, keymap_scheme)
+
+            elif state == "SETTINGS":
+                menu_renderer.draw_settings(keymap_scheme)
+
+            elif state == "STATS":
+                menu_renderer.draw_stats(games, level_manager, stats_manager)
+
+            elif state == "GAME":
+                frame = game_manager.get_current_frame()
+                grid_pos = renderer.pixel_to_grid(*mouse_pos)
+                available = game_manager.env.action_space if game_manager.env else []
+
+                renderer.draw_frame(
+                    frame, grid_pos,
+                    game_manager.step_count, game_manager.get_elapsed_ms(),
+                    game_manager.levels_completed, game_manager.max_levels,
+                    available, keymap_scheme, game_manager.game_id,
                 )
-                current_level = game_manager.levels_completed
 
-                if game_manager.max_levels > 0 and current_level >= game_manager.max_levels:
-                    menu.show_all_complete(
-                        game_manager.game_id,
-                        game_manager.total_steps,
+                if overlay_state == "win":
+                    best_steps = level_manager.get_best_steps(game_manager.game_id, current_level)
+                    best_time = level_manager.get_best_time_ms(game_manager.game_id, current_level)
+                    renderer.draw_overlay_win(
+                        current_level, game_manager.step_count, game_manager.get_elapsed_ms(),
+                        best_steps, best_time,
+                    )
+                elif overlay_state == "game_over":
+                    renderer.draw_overlay_game_over(game_manager.step_count)
+                elif overlay_state == "all_complete":
+                    renderer.draw_overlay_all_complete(
+                        game_manager.game_id, game_manager.total_steps,
                         game_manager.get_total_elapsed_ms(),
                     )
-                    time.sleep(2)
-                    raise GameExitException()
 
-                menu.console.print("[dim]进入下一关...[/dim]")
-                time.sleep(0.5)
-                obs = game_manager.env.reset()
-                game_manager.step_count = 0
-                game_manager.level_start_time = time.time()
-                game_over_recorded = False
-                continue
+            pygame.display.flip()
+            clock.tick(FPS)
 
-            if obs.state == GameState.GAME_OVER:
-                if not game_over_recorded:
-                    menu.show_game_over(game_manager.step_count)
-                    stats_manager.record_attempt(
-                        game_manager.game_id, current_level,
-                        game_manager.step_count, game_manager.get_elapsed_ms(),
-                        "GAME_OVER", session_id,
-                    )
-                    game_over_recorded = True
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        pygame.quit()
+        sys.exit(1)
 
-            key = _read_key()
-            if key is None:
-                time.sleep(0.02)
-                continue
 
-            if key.startswith('\x1bMOUSE:'):
-                _handle_mouse_click(key, game_manager, recording_manager, session_id)
-                continue
+def _handle_menu_event(event, menu_renderer, games):
+    if event.type == pygame.KEYDOWN:
+        if event.key == pygame.K_q:
+            return None
+        if event.key == pygame.K_s:
+            return "settings"
+        if event.key == pygame.K_v:
+            return "stats"
+        if pygame.K_1 <= event.key <= pygame.K_9:
+            idx = event.key - pygame.K_1
+            if idx < len(games):
+                return f"game:{idx}"
+    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        return menu_renderer.handle_main_menu_click(event.pos)
+    return False
 
-            if key == '\x1b':
-                raise GameExitException()
 
-            if key in ('q', 'Q'):
-                raise GameExitException()
+def _handle_settings_event(event, menu_renderer, keymap_scheme):
+    if event.type == pygame.KEYDOWN:
+        if event.key == pygame.K_ESCAPE:
+            return "back"
+    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        btn = menu_renderer.handle_button_click(event.pos)
+        if btn in ("wasd", "arrows"):
+            return btn
+        if btn == "back":
+            return "back"
+    return False
 
-            if key in ('c', 'C'):
-                _handle_coordinate_input(game_manager, recording_manager, session_id)
-                continue
 
-            if key in ('h', 'H'):
-                _print_keymap_hint(keymap_scheme)
-                continue
+def _handle_game_event(event, game_manager, renderer):
+    if event.type == pygame.KEYDOWN:
+        if event.key == pygame.K_ESCAPE:
+            return "exit"
+        keymap = get_keymap()
+        if event.key in keymap:
+            return (keymap[event.key], None)
 
-            action = None
-            if key in keymap:
-                action = keymap[key]
-            elif key == '\x00' or key == '\xe0':
-                ext = msvcrt.getwch()
-                ext_key = '\x00' + ext
-                if ext_key in keymap:
-                    action = keymap[ext_key]
-
-            if action is None:
-                continue
-
+    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        gx, gy = renderer.pixel_to_grid(*event.pos)
+        if gx is not None and gy is not None:
             available = game_manager.env.action_space if game_manager.env else []
-            if action not in available and action != GameAction.RESET:
-                continue
+            if GameAction.ACTION6 in available:
+                return (GameAction.ACTION6, {"x": gx, "y": gy})
 
-            obs = game_manager.execute_action(action)
-
-            recording_manager.record_step(
-                action, None, obs,
-                game_manager.step_count, game_manager.get_elapsed_ms(),
-            )
-
-            if game_manager.did_level_up():
-                current_level = game_manager.levels_completed - 1
-                _handle_win(
-                    game_manager, level_manager, stats_manager,
-                    recording_manager, session_id, current_level,
-                )
-                current_level = game_manager.levels_completed
-                game_over_recorded = False
-    finally:
-        disable_mouse_tracking()
+    return False
 
 
-def _handle_win(game_manager: GameManager, level_manager: LevelManager,
-                stats_manager: StatsManager, recording_manager: RecordingManager,
-                session_id: str, level_index: int):
+def _check_resume(game_id, level_manager, menu_renderer, screen, clock):
+    completed = level_manager.get_completed_count(game_id)
+    next_level = level_manager.get_next_uncompleted_level(game_id)
+    total = level_manager.get_total_levels(game_id)
+
+    if completed == 0 or next_level is None:
+        return "new"
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_c:
+                    return "continue"
+                if event.key == pygame.K_n:
+                    return "new"
+                if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
+                    return None
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                btn = menu_renderer.handle_button_click(event.pos)
+                if btn == "continue":
+                    return "continue"
+                if btn == "new":
+                    return "new"
+                if btn == "back":
+                    return None
+
+        menu_renderer.draw_resume_prompt(game_id, completed, total, next_level)
+        pygame.display.flip()
+        clock.tick(FPS)
+
+
+def _start_game(game_id, resume, game_manager, level_manager):
+    if not game_manager.start_game(game_id):
+        return False
+
+    if resume == "continue":
+        next_level = level_manager.get_next_uncompleted_level(game_id)
+        if next_level and next_level > 0:
+            game_manager.jump_to_level(next_level)
+    return True
+
+
+def _handle_win(game_manager, level_manager, stats_manager,
+                session_id, level_index):
     steps = game_manager.step_count
     time_ms = game_manager.get_elapsed_ms()
-
-    best_steps = level_manager.get_best_steps(game_manager.game_id, level_index)
-    best_time = level_manager.get_best_time_ms(game_manager.game_id, level_index)
-
-    menu.show_level_complete(level_index, steps, time_ms, best_steps, best_time)
 
     level_manager.update_level_status(
         game_manager.game_id, level_index, steps, time_ms,
@@ -239,133 +315,6 @@ def _handle_win(game_manager: GameManager, level_manager: LevelManager,
     stats_manager.record_attempt(
         game_manager.game_id, level_index, steps, time_ms, "WIN", session_id,
     )
-
-
-def _handle_mouse_click(key: str, game_manager: GameManager,
-                        recording_manager: RecordingManager, session_id: str):
-    available = game_manager.env.action_space if game_manager.env else []
-    if GameAction.ACTION6 not in available:
-        return
-
-    try:
-        parts = key.split(':')[1].split(',')
-        col, row = int(parts[0]), int(parts[1])
-    except (IndexError, ValueError):
-        return
-
-    gx, gy = terminal_to_grid(col, row)
-    if not (0 <= gx < 64 and 0 <= gy < 64):
-        return
-
-    obs = game_manager.execute_action(GameAction.ACTION6, data={"x": gx, "y": gy})
-    recording_manager.record_step(
-        GameAction.ACTION6, {"x": gx, "y": gy}, obs,
-        game_manager.step_count, game_manager.get_elapsed_ms(),
-    )
-
-
-def _handle_coordinate_input(game_manager: GameManager,
-                              recording_manager: RecordingManager,
-                              session_id: str):
-    available = game_manager.env.action_space if game_manager.env else []
-    if GameAction.ACTION6 not in available:
-        menu.console.print("[dim]ACTION6 当前不可用[/dim]")
-        return
-
-    menu.console.print("[cyan]输入坐标 (格式: x,y 或 x y):[/cyan] ", end="")
-
-    try:
-        line = input().strip()
-        parts = line.replace(",", " ").split()
-        if len(parts) != 2:
-            menu.console.print("[red]格式错误，需要 x,y[/red]")
-            return
-
-        x, y = int(parts[0]), int(parts[1])
-        if not (0 <= x < 64 and 0 <= y < 64):
-            menu.console.print("[red]坐标超出范围 (0-63)[/red]")
-            return
-
-        obs = game_manager.execute_action(GameAction.ACTION6, data={"x": x, "y": y})
-        recording_manager.record_step(
-            GameAction.ACTION6, {"x": x, "y": y}, obs,
-            game_manager.step_count, game_manager.get_elapsed_ms(),
-        )
-    except (ValueError, IndexError):
-        menu.console.print("[red]无效输入[/red]")
-    except EOFError:
-        pass
-
-
-def _print_keymap_hint(keymap_scheme: str):
-    from human_player.config import WASD_HELP, ARROW_HELP
-    help_map = WASD_HELP if keymap_scheme == "wasd" else ARROW_HELP
-    menu.console.print("\n[bold]操作提示:[/bold]")
-    for k, v in help_map.items():
-        menu.console.print(f"  [cyan]{k:8s}[/cyan] → {v}")
-    menu.console.print()
-
-
-VT_ARROW_RE = re.compile(r'\x1b\[([ABCD])')
-
-_INPUT_BUF = ''
-
-
-def _read_key() -> str | None:
-    global _INPUT_BUF
-    try:
-        while msvcrt.kbhit():
-            ch = msvcrt.getwch()
-            if ch == '\x03':
-                raise KeyboardInterrupt()
-            _INPUT_BUF += ch
-
-        if not _INPUT_BUF:
-            return None
-
-        if _INPUT_BUF[0] == '\x1b':
-            if len(_INPUT_BUF) >= 3:
-                m = VT_ARROW_RE.match(_INPUT_BUF)
-                if m:
-                    key = _INPUT_BUF[:3]
-                    _INPUT_BUF = _INPUT_BUF[3:]
-                    return key
-                mouse = parse_mouse_event(_INPUT_BUF)
-                if mouse:
-                    _INPUT_BUF = _INPUT_BUF[len(mouse['raw']):]
-                    if not mouse.get('_skip'):
-                        return f'\x1bMOUSE:{mouse["col"]},{mouse["row"]}'
-                    return None
-                _INPUT_BUF = _INPUT_BUF[1:]
-                return '\x1b'
-            elif len(_INPUT_BUF) >= 2 and _INPUT_BUF[1] != '[' and _INPUT_BUF[1] != '<':
-                _INPUT_BUF = _INPUT_BUF[1:]
-                return '\x1b'
-            time.sleep(0.03)
-            if not msvcrt.kbhit():
-                key = _INPUT_BUF[0]
-                _INPUT_BUF = _INPUT_BUF[1:]
-                return key
-            return None
-
-        if _INPUT_BUF[0] == '\x00' or _INPUT_BUF[0] == '\xe0':
-            if len(_INPUT_BUF) >= 2:
-                ext = _INPUT_BUF[1]
-                _INPUT_BUF = _INPUT_BUF[2:]
-                return '\x00' + ext
-            try:
-                ext = msvcrt.getwch()
-                _INPUT_BUF = _INPUT_BUF[1:]
-                return '\x00' + ext
-            except Exception:
-                _INPUT_BUF = _INPUT_BUF[1:]
-                return None
-
-        key = _INPUT_BUF[0]
-        _INPUT_BUF = _INPUT_BUF[1:]
-        return key
-    except KeyboardInterrupt:
-        raise
 
 
 def _ensure_dirs():

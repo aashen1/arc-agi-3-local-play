@@ -1,5 +1,7 @@
 import json
 import os
+
+import pygame
 from arcengine import GameAction
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
@@ -8,55 +10,101 @@ RECORDINGS_DIR = os.path.join(DATA_DIR, "recordings")
 PROGRESS_FILE = os.path.join(DATA_DIR, "progress.json")
 USER_CONFIG_FILE = os.path.join(DATA_DIR, "user_config.json")
 
+WINDOW_WIDTH = 800
+WINDOW_HEIGHT = 640
+FPS = 30
+
+CELL_SIZE = 9
+GRID_SIZE = 64
+GRID_PIXEL = GRID_SIZE * CELL_SIZE
+GRID_OFFSET_X = 0
+GRID_OFFSET_Y = 40
+
+HUD_TOP_H = 40
+HUD_BOTTOM_H = 30
+PANEL_WIDTH = WINDOW_WIDTH - GRID_PIXEL
+
+ARC_PALETTE = [
+    (255, 255, 255),
+    (204, 204, 204),
+    (153, 153, 153),
+    (102, 102, 102),
+    (51, 51, 51),
+    (0, 0, 0),
+    (229, 58, 163),
+    (255, 123, 204),
+    (249, 60, 49),
+    (30, 147, 255),
+    (136, 216, 241),
+    (255, 220, 0),
+    (255, 133, 27),
+    (146, 18, 49),
+    (79, 204, 48),
+    (163, 86, 214),
+]
+
+COLOR_BG = (30, 30, 30)
+COLOR_PANEL = (40, 40, 50)
+COLOR_TEXT = (220, 220, 220)
+COLOR_TEXT_DIM = (140, 140, 140)
+COLOR_HIGHLIGHT = (255, 220, 0)
+COLOR_WIN = (79, 204, 48)
+COLOR_GAMEOVER = (249, 60, 49)
+COLOR_ACCENT = (30, 147, 255)
+COLOR_HOVER = (255, 255, 255, 80)
+
 KEYMAP_WASD = {
-    'w': GameAction.ACTION1,
-    's': GameAction.ACTION2,
-    'a': GameAction.ACTION3,
-    'd': GameAction.ACTION4,
-    ' ': GameAction.ACTION5,
-    'z': GameAction.ACTION7,
-    'r': GameAction.RESET,
+    pygame.K_w: GameAction.ACTION1,
+    pygame.K_s: GameAction.ACTION2,
+    pygame.K_a: GameAction.ACTION3,
+    pygame.K_d: GameAction.ACTION4,
+    pygame.K_SPACE: GameAction.ACTION5,
+    pygame.K_z: GameAction.ACTION7,
+    pygame.K_r: GameAction.RESET,
 }
 
 KEYMAP_ARROWS = {
-    '\x00H': GameAction.ACTION1,
-    '\x00P': GameAction.ACTION2,
-    '\x00K': GameAction.ACTION3,
-    '\x00M': GameAction.ACTION4,
-    '\x1b[A': GameAction.ACTION1,
-    '\x1b[B': GameAction.ACTION2,
-    '\x1b[D': GameAction.ACTION3,
-    '\x1b[C': GameAction.ACTION4,
-    'f': GameAction.ACTION5,
-    'z': GameAction.ACTION7,
-    'r': GameAction.RESET,
+    pygame.K_UP: GameAction.ACTION1,
+    pygame.K_DOWN: GameAction.ACTION2,
+    pygame.K_LEFT: GameAction.ACTION3,
+    pygame.K_RIGHT: GameAction.ACTION4,
+    pygame.K_f: GameAction.ACTION5,
+    pygame.K_z: GameAction.ACTION7,
+    pygame.K_r: GameAction.RESET,
 }
 
 ACTION_LABELS = {
-    GameAction.ACTION1: "↑ 上",
-    GameAction.ACTION2: "↓ 下",
-    GameAction.ACTION3: "← 左",
-    GameAction.ACTION4: "→ 右",
-    GameAction.ACTION5: "交互",
-    GameAction.ACTION6: "点击",
-    GameAction.ACTION7: "撤销",
-    GameAction.RESET: "重置",
+    GameAction.ACTION1: "Up",
+    GameAction.ACTION2: "Down",
+    GameAction.ACTION3: "Left",
+    GameAction.ACTION4: "Right",
+    GameAction.ACTION5: "Interact",
+    GameAction.ACTION6: "Click",
+    GameAction.ACTION7: "Undo",
+    GameAction.RESET: "Reset",
 }
 
-WASD_HELP = {
-    'w': "↑", 's': "↓", 'a': "←", 'd': "→",
-    'Space': "交互", 'z': "撤销", 'r': "重置",
-    'c': "输入坐标", 'q': "退出",
+WASD_KEY_LABELS = {
+    GameAction.ACTION1: "W",
+    GameAction.ACTION2: "S",
+    GameAction.ACTION3: "A",
+    GameAction.ACTION4: "D",
+    GameAction.ACTION5: "Space",
+    GameAction.ACTION6: "Mouse",
+    GameAction.ACTION7: "Z",
+    GameAction.RESET: "R",
 }
 
-ARROW_HELP = {
-    '↑': "↑", '↓': "↓", '←': "←", '→': "→",
-    'f': "交互", 'z': "撤销", 'r': "重置",
-    'c': "输入坐标", 'q': "退出",
+ARROW_KEY_LABELS = {
+    GameAction.ACTION1: "Up",
+    GameAction.ACTION2: "Down",
+    GameAction.ACTION3: "Left",
+    GameAction.ACTION4: "Right",
+    GameAction.ACTION5: "F",
+    GameAction.ACTION6: "Mouse",
+    GameAction.ACTION7: "Z",
+    GameAction.RESET: "R",
 }
-
-RENDER_MODE_FAST = "terminal-fast"
-RENDER_MODE_NORMAL = "terminal"
 
 
 def _load_user_config() -> dict:
@@ -64,7 +112,7 @@ def _load_user_config() -> dict:
         try:
             with open(USER_CONFIG_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except (json.JSONDecodeError, OSError):
+        except (json.JsonDecodeError, OSError):
             pass
     return {}
 
@@ -75,15 +123,19 @@ def _save_user_config(cfg: dict):
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
 
-def get_fast_render() -> bool:
-    return _load_user_config().get("fast_render", True)
+def get_keymap_scheme() -> str:
+    return _load_user_config().get("keymap", "wasd")
 
 
-def set_fast_render(enabled: bool):
+def set_keymap_scheme(scheme: str):
     cfg = _load_user_config()
-    cfg["fast_render"] = enabled
+    cfg["keymap"] = scheme
     _save_user_config(cfg)
 
 
-def get_render_mode() -> str:
-    return RENDER_MODE_FAST if get_fast_render() else RENDER_MODE_NORMAL
+def get_keymap() -> dict:
+    return KEYMAP_WASD if get_keymap_scheme() == "wasd" else KEYMAP_ARROWS
+
+
+def get_key_labels() -> dict:
+    return WASD_KEY_LABELS if get_keymap_scheme() == "wasd" else ARROW_KEY_LABELS

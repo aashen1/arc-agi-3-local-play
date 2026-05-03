@@ -1,339 +1,250 @@
-import os
+import pygame
 
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.prompt import Prompt, IntPrompt
-from rich.text import Text
-from rich.columns import Columns
-from rich import box
-
-from human_player.config import WASD_HELP, ARROW_HELP, get_fast_render
-
-console = Console()
+from human_player.config import (
+    WINDOW_WIDTH, WINDOW_HEIGHT,
+    COLOR_BG, COLOR_PANEL, COLOR_TEXT, COLOR_TEXT_DIM,
+    COLOR_HIGHLIGHT, COLOR_WIN, COLOR_GAMEOVER, COLOR_ACCENT,
+    ACTION_LABELS, get_keymap_scheme, get_key_labels,
+)
 
 
-def show_banner():
-    banner = Text()
-    banner.append("ARC-AGI-3", style="bold cyan")
-    banner.append(" 人类玩家控制台", style="bold white")
-    console.print(Panel(banner, box=box.HEAVY, border_style="cyan", padding=(1, 2)))
-    console.print()
+class MenuRenderer:
+    def __init__(self, screen: pygame.Surface):
+        self.screen = screen
+        self.font_title = pygame.font.SysFont("consolas", 32, bold=True)
+        self.font_large = pygame.font.SysFont("consolas", 22, bold=True)
+        self.font_medium = pygame.font.SysFont("consolas", 16)
+        self.font_small = pygame.font.SysFont("consolas", 13)
+        self.hover_index = -1
+        self.game_rects = []
+        self.button_rects = {}
 
+    def draw_main_menu(self, games, level_manager, keymap_scheme):
+        self.screen.fill(COLOR_BG)
+        self.game_rects = []
+        self.button_rects = {}
 
-def show_game_list(games, level_manager) -> str | None:
-    if not games:
-        console.print("[red]没有找到可用游戏[/red]")
+        title = self.font_title.render("ARC-AGI-3", True, COLOR_ACCENT)
+        subtitle = self.font_medium.render("Human Player Console", True, COLOR_TEXT_DIM)
+        self.screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 20))
+        self.screen.blit(subtitle, (WINDOW_WIDTH // 2 - subtitle.get_width() // 2, 58))
+
+        y = 100
+        for i, game in enumerate(games):
+            gid = game.game_id
+            title_str = getattr(game, 'title', gid)
+            tags = ", ".join(getattr(game, 'tags', []))
+            completed = level_manager.get_completed_count(gid)
+            total = level_manager.get_total_levels(gid)
+
+            rect = pygame.Rect(40, y, WINDOW_WIDTH - 80, 52)
+            self.game_rects.append(rect)
+
+            bg_color = (50, 50, 70) if i == self.hover_index else COLOR_PANEL
+            pygame.draw.rect(self.screen, bg_color, rect, border_radius=6)
+            pygame.draw.rect(self.screen, COLOR_ACCENT, rect, 1, border_radius=6)
+
+            idx_text = self.font_large.render(f"{i + 1}", True, COLOR_HIGHLIGHT)
+            self.screen.blit(idx_text, (rect.x + 12, rect.y + 14))
+
+            name_text = self.font_medium.render(f"{gid} - {title_str}", True, COLOR_TEXT)
+            self.screen.blit(name_text, (rect.x + 50, rect.y + 8))
+
+            if total > 0:
+                prog = f"{completed}/{total}"
+            elif completed > 0:
+                prog = f"{completed} done"
+            else:
+                prog = "--"
+            prog_text = self.font_small.render(prog, True, COLOR_TEXT_DIM)
+            self.screen.blit(prog_text, (rect.x + 50, rect.y + 30))
+
+            if tags:
+                tag_text = self.font_small.render(tags, True, COLOR_TEXT_DIM)
+                self.screen.blit(tag_text, (rect.right - tag_text.get_width() - 12, rect.y + 18))
+
+            y += 60
+
+        btn_y = WINDOW_HEIGHT - 50
+        settings_rect = pygame.Rect(40, btn_y, 120, 36)
+        stats_rect = pygame.Rect(180, btn_y, 120, 36)
+        quit_rect = pygame.Rect(WINDOW_WIDTH - 160, btn_y, 120, 36)
+        self.button_rects = {
+            "settings": settings_rect,
+            "stats": stats_rect,
+            "quit": quit_rect,
+        }
+
+        for name, rect in self.button_rects.items():
+            pygame.draw.rect(self.screen, COLOR_PANEL, rect, border_radius=4)
+            pygame.draw.rect(self.screen, COLOR_ACCENT, rect, 1, border_radius=4)
+            labels = {"settings": "[S] Settings", "stats": "[V] Stats", "quit": "[Q] Quit"}
+            lbl = self.font_small.render(labels[name], True, COLOR_TEXT)
+            self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
+                                   rect.y + rect.h // 2 - lbl.get_height() // 2))
+
+        hint = self.font_small.render(
+            "Click a game or press number key to start", True, COLOR_TEXT_DIM,
+        )
+        self.screen.blit(hint, (WINDOW_WIDTH // 2 - hint.get_width() // 2, WINDOW_HEIGHT - 85))
+
+    def handle_main_menu_click(self, pos) -> str | None:
+        for i, rect in enumerate(self.game_rects):
+            if rect.collidepoint(pos):
+                return f"game:{i}"
+        for name, rect in self.button_rects.items():
+            if rect.collidepoint(pos):
+                return name
         return None
 
-    table = Table(
-        title="可用游戏",
-        box=box.ROUNDED,
-        show_lines=False,
-        border_style="blue",
-        title_style="bold blue",
-        row_styles=["", "dim"],
-    )
-    table.add_column("#", style="bold yellow", justify="center", width=4)
-    table.add_column("游戏 ID", style="bold cyan", no_wrap=True)
-    table.add_column("标题", style="white", width=10)
-    table.add_column("标签", style="dim", width=16)
-    table.add_column("进度", width=16)
+    def handle_main_menu_hover(self, pos):
+        self.hover_index = -1
+        for i, rect in enumerate(self.game_rects):
+            if rect.collidepoint(pos):
+                self.hover_index = i
+                break
 
-    for i, game in enumerate(games, 1):
-        gid = game.game_id
-        short_id = gid.split("-")[0] if "-" in gid else gid
-        title = getattr(game, 'title', "")
-        tags = ", ".join(getattr(game, 'tags', []))
+    def draw_stats(self, games, level_manager, stats_manager):
+        self.screen.fill(COLOR_BG)
+        self.button_rects = {}
 
-        completed = level_manager.get_completed_count(gid)
-        total = level_manager.get_total_levels(gid)
+        title = self.font_large.render("Statistics", True, COLOR_ACCENT)
+        self.screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 20))
 
-        if total > 0:
-            bar = _progress_bar(completed, total, width=8)
-            progress_text = f"{bar} {completed}/{total}"
-        elif completed > 0:
-            progress_text = f"✓ {completed} 关"
-        else:
-            progress_text = "[dim]—[/dim]"
+        y = 70
+        for game in games:
+            gid = game.game_id
+            title_str = getattr(game, 'title', gid)
+            summary = stats_manager.get_game_summary(gid)
+            completed = level_manager.get_completed_count(gid)
+            total = level_manager.get_total_levels(gid)
 
-        table.add_row(str(i), short_id, title, tags, progress_text)
+            panel_rect = pygame.Rect(30, y, WINDOW_WIDTH - 60, 70)
+            pygame.draw.rect(self.screen, COLOR_PANEL, panel_rect, border_radius=6)
+            pygame.draw.rect(self.screen, COLOR_WIN, panel_rect, 1, border_radius=6)
 
-    console.print(table)
-    console.print(f"  [dim]共 {len(games)} 个游戏[/dim]")
-    console.print()
+            name = self.font_medium.render(f"{gid} - {title_str}", True, COLOR_TEXT)
+            self.screen.blit(name, (panel_rect.x + 12, panel_rect.y + 8))
 
-    choices = [str(i) for i in range(1, len(games) + 1)] + ["s", "v", "q"]
-    choice = Prompt.ask(
-        "[bold]选择序号[/bold] | [yellow]S[/yellow]设置 | [yellow]V[/yellow]成绩 | [yellow]Q[/yellow]退出",
-        choices=choices,
-        default="q",
-    )
+            info_parts = [f"Attempts: {summary['total_attempts']}",
+                          f"Wins: {summary['total_wins']}",
+                          f"Levels: {completed}"]
+            if total > 0:
+                info_parts[-1] += f"/{total}"
+            if summary.get("best_steps"):
+                info_parts.append(f"Best: {summary['best_steps']} steps")
+            info = self.font_small.render("  ".join(info_parts), True, COLOR_TEXT_DIM)
+            self.screen.blit(info, (panel_rect.x + 12, panel_rect.y + 35))
 
-    if choice == "q":
+            y += 80
+
+        back_rect = pygame.Rect(WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT - 50, 120, 36)
+        self.button_rects = {"back": back_rect}
+        pygame.draw.rect(self.screen, COLOR_PANEL, back_rect, border_radius=4)
+        pygame.draw.rect(self.screen, COLOR_ACCENT, back_rect, 1, border_radius=4)
+        lbl = self.font_small.render("[ESC] Back", True, COLOR_TEXT)
+        self.screen.blit(lbl, (back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
+                               back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
+
+    def draw_settings(self, keymap_scheme):
+        self.screen.fill(COLOR_BG)
+        self.button_rects = {}
+
+        title = self.font_large.render("Settings", True, COLOR_ACCENT)
+        self.screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 20))
+
+        y = 80
+        keymap_display = "WASD + Space" if keymap_scheme == "wasd" else "Arrows + F"
+        label = self.font_medium.render("Keymap Scheme:", True, COLOR_TEXT)
+        self.screen.blit(label, (60, y))
+        value = self.font_large.render(keymap_display, True, COLOR_HIGHLIGHT)
+        self.screen.blit(value, (60, y + 28))
+
+        wasd_rect = pygame.Rect(60, y + 70, 200, 40)
+        arrow_rect = pygame.Rect(280, y + 70, 200, 40)
+        self.button_rects = {"wasd": wasd_rect, "arrows": arrow_rect}
+
+        for name, rect in self.button_rects.items():
+            is_selected = (name == keymap_scheme)
+            bg = COLOR_ACCENT if is_selected else COLOR_PANEL
+            border = COLOR_HIGHLIGHT if is_selected else COLOR_ACCENT
+            pygame.draw.rect(self.screen, bg, rect, border_radius=4)
+            pygame.draw.rect(self.screen, border, rect, 2, border_radius=4)
+            labels = {"wasd": "WASD + Space", "arrows": "Arrows + F"}
+            color = COLOR_BG if is_selected else COLOR_TEXT
+            lbl = self.font_medium.render(labels[name], True, color)
+            self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
+                                   rect.y + rect.h // 2 - lbl.get_height() // 2))
+
+        y += 140
+        pygame.draw.line(self.screen, COLOR_TEXT_DIM, (60, y), (WINDOW_WIDTH - 60, y))
+        y += 20
+
+        key_labels = get_key_labels()
+        header = self.font_medium.render("Key Bindings:", True, COLOR_ACCENT)
+        self.screen.blit(header, (60, y))
+        y += 28
+
+        for action in [key_labels[k] for k in key_labels]:
+            pass
+
+        from arcengine import GameAction
+        for action in [GameAction.ACTION1, GameAction.ACTION2, GameAction.ACTION3,
+                       GameAction.ACTION4, GameAction.ACTION5, GameAction.ACTION6,
+                       GameAction.ACTION7, GameAction.RESET]:
+            key_str = key_labels.get(action, "?")
+            action_str = ACTION_LABELS.get(action, action.name)
+            line = self.font_small.render(f"  [{key_str}]  {action_str}", True, COLOR_TEXT)
+            self.screen.blit(line, (60, y))
+            y += 20
+
+        back_rect = pygame.Rect(WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT - 50, 120, 36)
+        self.button_rects["back"] = back_rect
+        pygame.draw.rect(self.screen, COLOR_PANEL, back_rect, border_radius=4)
+        pygame.draw.rect(self.screen, COLOR_ACCENT, back_rect, 1, border_radius=4)
+        lbl = self.font_small.render("[ESC] Back", True, COLOR_TEXT)
+        self.screen.blit(lbl, (back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
+                               back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
+
+    def draw_resume_prompt(self, game_id, completed, total, next_level):
+        self.screen.fill(COLOR_BG)
+        self.button_rects = {}
+
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 100))
+        self.screen.blit(overlay, (0, 0))
+
+        box_w, box_h = 420, 220
+        box_x = (WINDOW_WIDTH - box_w) // 2
+        box_y = (WINDOW_HEIGHT - box_h) // 2
+        pygame.draw.rect(self.screen, COLOR_PANEL, (box_x, box_y, box_w, box_h), border_radius=8)
+        pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, (box_x, box_y, box_w, box_h), 2, border_radius=8)
+
+        title = self.font_large.render("Save Data Found", True, COLOR_HIGHLIGHT)
+        self.screen.blit(title, (box_x + 20, box_y + 15))
+
+        prog = f"{completed}/{total}" if total > 0 else f"{completed} done"
+        info = self.font_medium.render(
+            f"{game_id}: {prog}  Next: Level {next_level + 1}", True, COLOR_TEXT,
+        )
+        self.screen.blit(info, (box_x + 20, box_y + 55))
+
+        cont_rect = pygame.Rect(box_x + 20, box_y + 100, 180, 40)
+        new_rect = pygame.Rect(box_x + 220, box_y + 100, 180, 40)
+        back_rect = pygame.Rect(box_x + 120, box_y + 160, 180, 36)
+        self.button_rects = {"continue": cont_rect, "new": new_rect, "back": back_rect}
+
+        for name, rect in self.button_rects.items():
+            pygame.draw.rect(self.screen, COLOR_PANEL, rect, border_radius=4)
+            border_color = COLOR_WIN if name == "continue" else COLOR_ACCENT
+            pygame.draw.rect(self.screen, border_color, rect, 1, border_radius=4)
+            labels = {"continue": "[C] Continue", "new": "[N] New Game", "back": "[Q] Back"}
+            lbl = self.font_small.render(labels[name], True, COLOR_TEXT)
+            self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
+                                   rect.y + rect.h // 2 - lbl.get_height() // 2))
+
+    def handle_button_click(self, pos) -> str | None:
+        for name, rect in self.button_rects.items():
+            if rect.collidepoint(pos):
+                return name
         return None
-    elif choice == "s":
-        return "SETTINGS"
-    elif choice == "v":
-        return "STATS"
-    else:
-        idx = int(choice) - 1
-        return games[idx].game_id
-
-
-def show_stats(games, level_manager, stats_manager):
-    console.print()
-    console.rule("[bold blue]成绩统计", style="blue")
-
-    for game in games:
-        gid = game.game_id
-        title = getattr(game, 'title', gid)
-        summary = stats_manager.get_game_summary(gid)
-        completed = level_manager.get_completed_count(gid)
-        total = level_manager.get_total_levels(gid)
-
-        panel_content = Text()
-        panel_content.append(f"总尝试: {summary['total_attempts']}  ", style="white")
-        panel_content.append(f"胜利: {summary['total_wins']}  ", style="green")
-        panel_content.append(f"完成关卡: {completed}", style="cyan")
-        if total > 0:
-            panel_content.append(f"/{total}", style="dim")
-        if summary.get("best_steps"):
-            panel_content.append(f"  最佳步数: {summary['best_steps']}", style="yellow")
-
-        console.print(Panel(panel_content, title=f"[bold]{gid}[/bold] - {title}",
-                            border_style="green", padding=(0, 2)))
-
-        level_details = _get_level_details(gid, level_manager, stats_manager)
-        if level_details:
-            lt = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
-            lt.add_column("关卡", style="dim", width=6)
-            lt.add_column("状态", width=8)
-            lt.add_column("最佳步数", justify="right", width=10)
-            lt.add_column("最佳时间", justify="right", width=12)
-            lt.add_column("尝试次数", justify="right", width=8)
-            for row in level_details:
-                lt.add_row(*row)
-            console.print(lt)
-
-    console.print()
-    Prompt.ask("[dim]按回车返回[/dim]", default="")
-
-
-def show_settings(current_keymap: str) -> dict:
-    console.print()
-    console.rule("[bold blue]设置", style="blue")
-
-    fast_render = get_fast_render()
-    render_display = "terminal-fast (高帧率)" if fast_render else "terminal (标准)"
-    render_desc = "无帧率限制，渲染更快" if fast_render else "帧率限制，适合人类观看"
-
-    table = Table(box=box.ROUNDED, border_style="yellow", show_lines=True)
-    table.add_column("选项", style="bold", width=12)
-    table.add_column("当前值", width=24)
-    table.add_column("说明", style="dim", width=40)
-
-    keymap_display = "WASD + Space" if current_keymap == "wasd" else "方向键 + F"
-    table.add_row("键位方案", keymap_display, "WASD 或 方向键")
-    table.add_row("渲染模式", render_display, render_desc)
-
-    console.print(table)
-    console.print()
-
-    console.print("[bold]WASD 方案:[/bold]")
-    for k, v in WASD_HELP.items():
-        console.print(f"  [cyan]{k:8s}[/cyan] → {v}")
-
-    console.print()
-    console.print("[bold]方向键方案:[/bold]")
-    for k, v in ARROW_HELP.items():
-        console.print(f"  [cyan]{k:8s}[/cyan] → {v}")
-
-    console.print()
-    console.print("[bold]渲染模式说明:[/bold]")
-    console.print("  [cyan]terminal-fast[/cyan]  无帧率限制，终端渲染速度更快（默认）")
-    console.print("  [cyan]terminal[/cyan]       帧率限制，适合人类实时观看")
-    console.print()
-
-    choice = Prompt.ask(
-        "[W]ASD键位 | 方向键[A] | 切换渲染[F] | [Q]返回",
-        choices=["w", "a", "f", "q"],
-        default="q",
-    )
-
-    if choice == "w":
-        return {"keymap": "wasd"}
-    elif choice == "a":
-        return {"keymap": "arrows"}
-    elif choice == "f":
-        return {"toggle_render": True}
-    return {}
-
-
-def show_game_hud(game_id: str, step_count: int, levels_completed: int,
-                  max_levels: int, elapsed_ms: int, available_actions: list,
-                  keymap_scheme: str):
-    elapsed_s = elapsed_ms // 1000
-    minutes = elapsed_s // 60
-    seconds = elapsed_s % 60
-
-    level_info = f"关卡 {levels_completed + 1}"
-    if max_levels > 0:
-        level_info += f"/{max_levels}"
-
-    action_names = []
-    for a in available_actions:
-        label = _action_short_label(a, keymap_scheme)
-        action_names.append(label)
-
-    scheme_name = "WASD" if keymap_scheme == "wasd" else "方向键"
-
-    hud = Text()
-    hud.append(f" {game_id} ", style="bold cyan on black")
-    hud.append(f" │ {level_info} ", style="bold white")
-    hud.append(f" │ 步数: {step_count} ", style="yellow")
-    hud.append(f" │ ⏱ {minutes:02d}:{seconds:02d} ", style="green")
-    hud.append(f" │ {scheme_name} ", style="dim")
-
-    console.print(Panel(hud, box=box.SQUARE, border_style="dim", padding=(0, 1)))
-
-    actions_text = "  ".join(f"[{n}]" for n in action_names)
-    console.print(f"  可用: {actions_text}  [q]退出  [c]输入坐标", style="dim")
-
-
-def show_level_complete(level_index: int, steps: int, time_ms: int,
-                        best_steps: int | None, best_time: int | None):
-    elapsed_s = time_ms // 1000
-    minutes = elapsed_s // 60
-    seconds = elapsed_s % 60
-
-    content = Text()
-    content.append(f"关卡 {level_index + 1} 通过！\n", style="bold green")
-    content.append(f"  步数: {steps}  ", style="yellow")
-    content.append(f"  用时: {minutes:02d}:{seconds:02d}\n", style="cyan")
-
-    if best_steps and steps <= best_steps:
-        content.append("  ★ 新纪录！\n", style="bold yellow")
-    elif best_steps:
-        content.append(f"  最佳: {best_steps}步\n", style="dim")
-
-    console.print(Panel(content, border_style="green", title="✓ 关卡完成", padding=(0, 2)))
-
-
-def show_game_over(step_count: int):
-    content = Text()
-    content.append("游戏结束\n", style="bold red")
-    content.append(f"  总步数: {step_count}\n", style="yellow")
-    content.append("  按 [R] 重置  [Q] 退出", style="dim")
-    console.print(Panel(content, border_style="red", title="✗ GAME OVER", padding=(0, 2)))
-
-
-def show_all_complete(game_id: str, total_steps: int, total_time_ms: int):
-    elapsed_s = total_time_ms // 1000
-    minutes = elapsed_s // 60
-    seconds = elapsed_s % 60
-
-    content = Text()
-    content.append(f"游戏 {game_id} 全部通关！\n\n", style="bold green")
-    content.append(f"  总步数: {total_steps}\n", style="yellow")
-    content.append(f"  总用时: {minutes:02d}:{seconds:02d}\n", style="cyan")
-    console.print(Panel(content, border_style="green", title="🎉 恭喜通关", padding=(0, 2)))
-
-
-def show_resume_prompt(game_id: str, completed: int, total: int,
-                       next_level: int) -> str | None:
-    content = Text()
-    content.append(f"检测到已有进度: ", style="white")
-    bar = _progress_bar(completed, total, width=8) if total > 0 else ""
-    if total > 0:
-        content.append(f"{bar} {completed}/{total}\n", style="cyan")
-    else:
-        content.append(f"✓ {completed} 关\n", style="cyan")
-    content.append(f"上次完成到第 {completed} 关，下一关为第 {next_level + 1} 关\n\n", style="white")
-
-    content.append("[C] ", style="bold green")
-    content.append("继续上次 — 直接跳到第 ", style="green")
-    content.append(f"{next_level + 1}", style="bold green")
-    content.append(" 关\n", style="green")
-
-    content.append("[N] ", style="bold cyan")
-    content.append("从头开始 — 从第 1 关重新打（进度记录保留）\n", style="cyan")
-    content.append("[Q] ", style="bold dim")
-    content.append("返回\n", style="dim")
-
-    console.print(Panel(content, border_style="yellow",
-                        title="📋 发现存档进度", padding=(0, 2)))
-
-    choices = ["c", "n", "q"]
-    choice = Prompt.ask(
-        "选择",
-        choices=choices,
-        default="c",
-    )
-
-    if choice == "c":
-        return "continue"
-    elif choice == "n":
-        return "new"
-    return None
-
-
-def _progress_bar(completed: int, total: int, width: int = 10) -> str:
-    if total == 0:
-        return "░" * width
-    filled = int(width * completed / total)
-    return "█" * filled + "░" * (width - filled)
-
-
-def _get_overall_best(level_manager, game_id: str) -> int | None:
-    game = level_manager.get_game_progress(game_id)
-    best = None
-    for level_data in game.get("levels", {}).values():
-        if level_data.get("completed") and level_data.get("best_steps"):
-            if best is None or level_data["best_steps"] < best:
-                best = level_data["best_steps"]
-    return best
-
-
-def _get_level_details(game_id: str, level_manager, stats_manager) -> list[list[str]]:
-    game = level_manager.get_game_progress(game_id)
-    rows = []
-    for level_key, level_data in sorted(game.get("levels", {}).items(), key=lambda x: int(x[0])):
-        idx = int(level_key)
-        stats = stats_manager.get_level_stats(game_id, idx)
-
-        if level_data.get("completed"):
-            status = "[green]✓ 通过[/green]"
-        else:
-            status = "[dim]未通过[/dim]"
-
-        best_steps = str(level_data.get("best_steps", "-"))
-        best_time_ms = level_data.get("best_time_ms")
-        if best_time_ms is not None:
-            t = best_time_ms // 1000
-            best_time = f"{t // 60:02d}:{t % 60:02d}"
-        else:
-            best_time = "-"
-
-        attempts = str(stats.get("attempts", 0))
-        rows.append([f"L{idx + 1}", status, best_steps, best_time, attempts])
-
-    return rows
-
-
-def _action_short_label(action, keymap_scheme: str) -> str:
-    from arcengine import GameAction
-    from human_player.config import KEYMAP_WASD, KEYMAP_ARROWS
-
-    keymap = KEYMAP_WASD if keymap_scheme == "wasd" else KEYMAP_ARROWS
-
-    for key, act in keymap.items():
-        if act == action:
-            display = key if key.strip() else "Space"
-            return f"{display}={action.name.replace('ACTION', 'A')}"
-
-    for key, act in KEYMAP_WASD.items():
-        if act == action:
-            return f"{key}={action.name.replace('ACTION', 'A')}"
-
-    return action.name

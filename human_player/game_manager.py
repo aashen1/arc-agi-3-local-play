@@ -1,16 +1,15 @@
 import time
+
+import numpy as np
 from arcengine import GameAction, GameState, FrameDataRaw
 import arc_agi
 
-from human_player.config import get_render_mode
-
 
 class GameManager:
-    def __init__(self, render_mode=None):
+    def __init__(self):
         self.arc = arc_agi.Arcade()
         self.env = None
         self.game_id = None
-        self.render_mode = render_mode or get_render_mode()
         self.step_count = 0
         self.total_steps = 0
         self.level_start_time = None
@@ -32,7 +31,7 @@ class GameManager:
         self.game_start_time = time.time()
         self.level_start_time = time.time()
 
-        self.env = self.arc.make(game_id, render_mode=self.render_mode)
+        self.env = self.arc.make(game_id)
         if self.env is None:
             return False
 
@@ -74,6 +73,15 @@ class GameManager:
     def close_game(self):
         self.env = None
         self.game_id = None
+
+    def get_current_frame(self) -> np.ndarray | None:
+        obs = self.env.observation_space if self.env else None
+        if obs is None or obs.frame is None:
+            return None
+        frame = obs.frame
+        if isinstance(frame, list):
+            return np.array(frame[0]) if frame else None
+        return np.array(frame)
 
     def get_elapsed_ms(self) -> int:
         if self.level_start_time is None:

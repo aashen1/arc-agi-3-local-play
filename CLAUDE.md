@@ -23,7 +23,9 @@
 
 | 文档 | 内容 |
 |------|------|
-| [docs/guide.md](docs/guide.md) | 快速上手指南 — 环境配置、第一个游戏、基本用法 |
+| [docs/human-player-guide.md](docs/human-player-guide.md) | 人类玩家控制台使用说明 — 启动、操作、数据文件 |
+| [docs/human-player-tech-report.md](docs/human-player-tech-report.md) | 人类玩家控制台技术报告 — 架构、模块、设计决策 |
+| [docs/guide.md](docs/guide.md) | ARC-AGI-3 快速上手指南 — 环境配置、第一个游戏、基本用法 |
 | [docs/game-mechanics.md](docs/game-mechanics.md) | 游戏机制详解 — 网格结构、游戏状态、关卡设计、可用游戏 |
 | [docs/scoring-system.md](docs/scoring-system.md) | 评分系统详解 — RHAE 评分公式、人类基线、加权聚合 |
 | [docs/actions-reference.md](docs/actions-reference.md) | 动作参考手册 — 7 种标准动作、键位映射、复杂动作坐标 |
@@ -51,8 +53,24 @@ taa3-try-arg-agi-3/
 ├── CLAUDE.md              ← 你正在这里（总入口）
 ├── pixi.toml              ← Python 环境配置
 ├── play.py                ← 最简游戏脚本
+├── human_player/          ← 人类玩家控制台（Pygame）
+│   ├── __main__.py        ← 入口 + 主循环 + 状态机
+│   ├── config.py          ← 窗口尺寸、调色板、键位映射
+│   ├── game_manager.py    ← Arcade/Environment 交互封装
+│   ├── renderer.py        ← Pygame 网格渲染 + HUD
+│   ├── menu.py            ← Pygame 菜单画面
+│   ├── level_manager.py   ← 关卡进度 JSON 读写
+│   ├── stats_manager.py   ← 成绩记录 JSON 读写
+│   ├── player_manager.py  ← 多玩家管理
+│   ├── recording.py       ← 轻量级操作录像（JSONL）
+│   └── official_recording.py ← 官方格式录像
+├── data/                  ← 运行时数据（自动创建）
+│   ├── players/           ← 按玩家分目录存储数据
+│   └── user_config.json   ← 用户配置（当前玩家、键位方案）
 ├── docs/
-│   ├── guide.md           ← 快速上手
+│   ├── human-player-guide.md      ← 人类玩家控制台使用说明
+│   ├── human-player-tech-report.md ← 人类玩家控制台技术报告
+│   ├── guide.md           ← ARC-AGI-3 快速上手
 │   ├── game-mechanics.md  ← 游戏机制
 │   ├── scoring-system.md  ← 评分系统
 │   ├── actions-reference.md ← 动作参考
@@ -64,9 +82,17 @@ taa3-try-arg-agi-3/
 └── .env                   ← API Key（禁止读取）
 ```
 
+## 快速启动
+
+```bash
+pixi run game              # 启动人类玩家控制台（Pygame）
+pixi run human-play        # 同上（别名）
+```
+
 ## 开发约定
 
 - 新增脚本放在项目根目录或 `scripts/` 目录
 - 实验记录和结果放在 `experiments/` 目录（按日期/实验名组织）
 - 所有 Python 程序使用 `pixi run python` 执行
 - 不要修改 `plgd/arcprize-docs/` 下的官方文档
+- 人类玩家控制台使用 Pygame 渲染，支持键盘和鼠标操作

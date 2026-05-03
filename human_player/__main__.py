@@ -205,6 +205,7 @@ def main():
                         player_input_active = True
 
                 elif state == "GAME":
+                    overlay_just_set = False
                     action_result = False
                     if game_manager.is_animating():
                         if event.type == pygame.KEYDOWN:
@@ -270,6 +271,7 @@ def main():
                                     overlay_state = "all_complete"
                                 else:
                                     overlay_state = "win"
+                                overlay_just_set = True
                             elif obs and obs.state == GameState.GAME_OVER:
                                 if not game_over_recorded:
                                     stats_manager.record_attempt(
@@ -279,8 +281,9 @@ def main():
                                     )
                                     game_over_recorded = True
                                 overlay_state = "game_over"
+                                overlay_just_set = True
 
-                    if overlay_state and event.type == pygame.KEYDOWN:
+                    if overlay_state and not overlay_just_set and event.type == pygame.KEYDOWN:
                         if overlay_state == "win":
                             overlay_state = None
                             game_manager.step_count = 0
@@ -301,7 +304,7 @@ def main():
                             overlay_state = None
                             continue
 
-                    if overlay_state and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if overlay_state and not overlay_just_set and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         if overlay_state == "win":
                             overlay_state = None
                             game_manager.step_count = 0

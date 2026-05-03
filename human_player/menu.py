@@ -148,7 +148,8 @@ class MenuRenderer:
             else:
                 pygame.draw.rect(self.screen, COLOR_ACCENT, rect, 1, border_radius=6)
 
-            id_text = self.font_cell_id.render(gid, True, COLOR_TEXT)
+            display_id = gid.split('-')[0]
+            id_text = self.font_cell_id.render(display_id, True, COLOR_TEXT)
             self.screen.blit(id_text, (rect.x + rect.w // 2 - id_text.get_width() // 2,
                                        rect.y + 10))
 

@@ -6,7 +6,8 @@ import pygame
 from arcengine import GameAction, GameState
 
 from human_player.config import (
-    WINDOW_WIDTH, WINDOW_HEIGHT, FPS,
+    WINDOW_WIDTH, WINDOW_HEIGHT, DESIGN_WIDTH, DESIGN_HEIGHT,
+    MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT, FPS,
     get_keymap, get_keymap_scheme, set_keymap_scheme,
     DATA_DIR, RECORDS_DIR, RECORDINGS_DIR, PLAYERS_DIR,
 )
@@ -24,13 +25,17 @@ def main():
     _ensure_dirs()
 
     pygame.init()
-    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+    screen = pygame.display.set_mode(
+        (WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE,
+    )
     pygame.display.set_caption("ARC-AGI-3 Human Player")
     clock = pygame.time.Clock()
 
+    virtual_surface = pygame.Surface((DESIGN_WIDTH, DESIGN_HEIGHT))
+
     game_manager = GameManager()
-    renderer = Renderer(screen)
-    menu_renderer = MenuRenderer(screen)
+    renderer = Renderer(virtual_surface)
+    menu_renderer = MenuRenderer(virtual_surface)
 
     player_manager = PlayerManager()
     level_manager = LevelManager(progress_file=player_manager.get_progress_file())
@@ -49,6 +54,27 @@ def main():
     player_input_text = ""
     player_input_active = False
 
+    window_w = WINDOW_WIDTH
+    window_h = WINDOW_HEIGHT
+    scale_factor = 1.0
+    offset_x = 0
+    offset_y = 0
+
+    def _recalc_layout():
+        nonlocal scale_factor, offset_x, offset_y
+        scale_factor = min(window_w / DESIGN_WIDTH, window_h / DESIGN_HEIGHT)
+        scaled_w = int(DESIGN_WIDTH * scale_factor)
+        scaled_h = int(DESIGN_HEIGHT * scale_factor)
+        offset_x = (window_w - scaled_w) // 2
+        offset_y = (window_h - scaled_h) // 2
+
+    def _window_to_design(wx, wy):
+        dx = (wx - offset_x) / scale_factor
+        dy = (wy - offset_y) / scale_factor
+        return int(dx), int(dy)
+
+    _recalc_layout()
+
     def _switch_player(name):
         nonlocal level_manager, stats_manager, games
         player_manager.set_player(name)
@@ -58,18 +84,43 @@ def main():
 
     try:
         while True:
-            mouse_pos = pygame.mouse.get_pos()
+            raw_mouse_pos = pygame.mouse.get_pos()
+            mouse_pos = _window_to_design(*raw_mouse_pos)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
 
+                if event.type == pygame.VIDEORESIZE:
+                    window_w = max(event.w, MIN_WINDOW_WIDTH)
+                    window_h = max(event.h, MIN_WINDOW_HEIGHT)
+                    screen = pygame.display.set_mode(
+                        (window_w, window_h), pygame.RESIZABLE,
+                    )
+                    _recalc_layout()
+                    continue
+
+                if hasattr(event, 'pos') and event.type in (
+                    pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+                    pygame.MOUSEMOTION,
+                ):
+                    event.pos = _window_to_design(*event.pos)
+
                 if state == "MAIN_MENU":
                     result = _handle_menu_event(event, menu_renderer, games)
                     if result is None:
                         pygame.quit()
                         sys.exit()
+                    elif result == "quit":
+                        pygame.quit()
+                        sys.exit()
+                    elif result == "toggle_view":
+                        menu_renderer.toggle_view_mode()
+                    elif result == "scrollbar_thumb":
+                        menu_renderer.start_scroll_drag(event.pos[1])
+                    elif result == "scrollbar_track":
+                        menu_renderer.handle_scrollbar_track_click(event.pos, games)
                     elif result == "settings":
                         state = "SETTINGS"
                     elif result == "stats":
@@ -83,7 +134,9 @@ def main():
                         if idx < len(games):
                             game_id = games[idx].game_id
                             resume = _check_resume(
-                                game_id, level_manager, menu_renderer, screen, clock,
+                                game_id, level_manager, menu_renderer,
+                                virtual_surface, screen, clock,
+                                scale_factor, offset_x, offset_y,
                             )
                             if resume is None:
                                 continue
@@ -101,6 +154,15 @@ def main():
                                     game_manager.max_levels,
                                     levels_at_start,
                                 )
+
+                if state == "MAIN_MENU":
+                    if event.type == pygame.MOUSEWHEEL:
+                        menu_renderer.handle_scroll(event.y, games)
+                    if event.type == pygame.MOUSEMOTION:
+                        if menu_renderer.scroll_dragging:
+                            menu_renderer.update_scroll_drag(event.pos[1], games)
+                    if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                        menu_renderer.end_scroll_drag()
 
                 elif state == "SETTINGS":
                     result = _handle_settings_event(event, menu_renderer, keymap_scheme)
@@ -263,6 +325,11 @@ def main():
                         game_manager.get_total_elapsed_ms(),
                     )
 
+            scaled_w = int(DESIGN_WIDTH * scale_factor)
+            scaled_h = int(DESIGN_HEIGHT * scale_factor)
+            scaled = pygame.transform.scale(virtual_surface, (scaled_w, scaled_h))
+            screen.fill((0, 0, 0))
+            screen.blit(scaled, (offset_x, offset_y))
             pygame.display.flip()
             clock.tick(FPS)
 
@@ -343,7 +410,8 @@ def _handle_game_event(event, game_manager, renderer):
     return False
 
 
-def _check_resume(game_id, level_manager, menu_renderer, screen, clock):
+def _check_resume(game_id, level_manager, menu_renderer, virtual_surface,
+                   screen, clock, scale_factor, offset_x, offset_y):
     completed = level_manager.get_completed_count(game_id)
     next_level = level_manager.get_next_uncompleted_level(game_id)
     total = level_manager.get_total_levels(game_id)
@@ -351,11 +419,26 @@ def _check_resume(game_id, level_manager, menu_renderer, screen, clock):
     if completed == 0 or next_level is None:
         return "new"
 
+    def _scale_and_present():
+        scaled_w = int(DESIGN_WIDTH * scale_factor)
+        scaled_h = int(DESIGN_HEIGHT * scale_factor)
+        scaled = pygame.transform.scale(virtual_surface, (scaled_w, scaled_h))
+        screen.fill((0, 0, 0))
+        screen.blit(scaled, (offset_x, offset_y))
+        pygame.display.flip()
+
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            if hasattr(event, 'pos') and event.type in (
+                pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+                pygame.MOUSEMOTION,
+            ):
+                dx = (event.pos[0] - offset_x) / scale_factor
+                dy = (event.pos[1] - offset_y) / scale_factor
+                event.pos = (int(dx), int(dy))
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_c:
                     return "continue"
@@ -373,7 +456,7 @@ def _check_resume(game_id, level_manager, menu_renderer, screen, clock):
                     return None
 
         menu_renderer.draw_resume_prompt(game_id, completed, total, next_level)
-        pygame.display.flip()
+        _scale_and_present()
         clock.tick(FPS)
 
 

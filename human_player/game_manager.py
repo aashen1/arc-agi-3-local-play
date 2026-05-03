@@ -4,6 +4,8 @@ import numpy as np
 from arcengine import GameAction, GameState, FrameDataRaw
 import arc_agi
 
+ANIMATION_FPS = 15
+
 
 class GameManager:
     def __init__(self):
@@ -18,6 +20,11 @@ class GameManager:
         self.max_levels = 0
         self._prev_levels_completed = 0
 
+        self._anim_frames: list[np.ndarray] = []
+        self._anim_index: int = 0
+        self._anim_start_time: float = 0.0
+        self._anim_frame_duration: float = 1.0 / ANIMATION_FPS
+
     def list_games(self):
         return self.arc.get_environments()
 
@@ -30,6 +37,8 @@ class GameManager:
         self.max_levels = 0
         self.game_start_time = time.time()
         self.level_start_time = time.time()
+        self._anim_frames = []
+        self._anim_index = 0
 
         self.env = self.arc.make(game_id)
         if self.env is None:
@@ -38,6 +47,7 @@ class GameManager:
         obs = self.env.reset()
         if obs:
             self._update_from_obs(obs)
+            self._start_animation(obs)
         return True
 
     def execute_action(self, action: GameAction, data: dict = None) -> FrameDataRaw | None:
@@ -56,6 +66,7 @@ class GameManager:
             self.step_count += 1
             self.total_steps += 1
             self._update_from_obs(obs)
+            self._start_animation(obs)
 
         return obs
 
@@ -65,9 +76,12 @@ class GameManager:
 
         self.step_count = 0
         self.level_start_time = time.time()
+        self._anim_frames = []
+        self._anim_index = 0
         obs = self.env.reset()
         if obs:
             self._update_from_obs(obs)
+            self._start_animation(obs)
         return obs
 
     def close_game(self):
@@ -87,21 +101,67 @@ class GameManager:
             return []
         frame = obs.frame
         if isinstance(frame, list):
-            if frame and isinstance(frame[0], list) and isinstance(frame[0][0], list):
-                return frame[0]
-            return frame
+            if frame and isinstance(frame[-1], list) and isinstance(frame[-1][0], list):
+                return frame[-1]
+            if frame:
+                return frame[-1] if isinstance(frame[-1], list) else frame
+            return []
         if isinstance(frame, np.ndarray):
             return frame.tolist()
         return []
 
     def get_current_frame(self) -> np.ndarray | None:
+        if self.is_animating():
+            return self._anim_frames[self._anim_index]
+
         obs = self.env.observation_space if self.env else None
         if obs is None or obs.frame is None:
             return None
         frame = obs.frame
         if isinstance(frame, list):
-            return np.array(frame[0]) if frame else None
+            if not frame:
+                return None
+            return np.array(frame[-1])
         return np.array(frame)
+
+    def is_animating(self) -> bool:
+        return len(self._anim_frames) > 0 and self._anim_index < len(self._anim_frames)
+
+    def advance_animation(self) -> bool:
+        if not self.is_animating():
+            return False
+
+        now = time.time()
+        elapsed = now - self._anim_start_time
+        target_index = int(elapsed / self._anim_frame_duration)
+
+        if target_index > self._anim_index:
+            self._anim_index = min(target_index, len(self._anim_frames) - 1)
+
+        if self._anim_index >= len(self._anim_frames) - 1:
+            self._anim_frames = []
+            self._anim_index = 0
+            return False
+        return True
+
+    def skip_animation(self):
+        self._anim_frames = []
+        self._anim_index = 0
+
+    def _start_animation(self, obs: FrameDataRaw):
+        if obs is None or obs.frame is None:
+            self._anim_frames = []
+            self._anim_index = 0
+            return
+
+        frame = obs.frame
+        if isinstance(frame, list) and len(frame) > 1:
+            self._anim_frames = [np.array(f) for f in frame]
+            self._anim_index = 0
+            self._anim_start_time = time.time()
+        else:
+            self._anim_frames = []
+            self._anim_index = 0
 
     def get_elapsed_ms(self) -> int:
         if self.level_start_time is None:

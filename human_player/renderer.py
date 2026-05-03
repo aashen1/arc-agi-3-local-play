@@ -41,7 +41,7 @@ class Renderer:
 
     def _draw_grid(self, frame, mouse_grid_pos):
         if isinstance(frame, list):
-            grid = np.array(frame[0]) if frame else None
+            grid = np.array(frame[-1]) if frame else None
         else:
             grid = np.array(frame)
 

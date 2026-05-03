@@ -201,9 +201,20 @@ def main():
                         player_input_active = True
 
                 elif state == "GAME":
-                    action_result = _handle_game_event(
-                        event, game_manager, renderer,
-                    )
+                    action_result = False
+                    if game_manager.is_animating():
+                        if event.type == pygame.KEYDOWN:
+                            if event.key == pygame.K_ESCAPE:
+                                game_manager.skip_animation()
+                                action_result = "exit"
+                            else:
+                                game_manager.skip_animation()
+                        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                            game_manager.skip_animation()
+                    else:
+                        action_result = _handle_game_event(
+                            event, game_manager, renderer,
+                        )
                     if action_result == "exit":
                         final_state = "NOT_FINISHED"
                         if game_manager.env:
@@ -259,7 +270,6 @@ def main():
                                 overlay_state = "all_complete"
                             else:
                                 overlay_state = None
-                                game_manager.env.reset()
                                 game_manager.step_count = 0
                                 game_manager.level_start_time = time.time()
                                 game_over_recorded = False
@@ -299,6 +309,7 @@ def main():
                 )
 
             elif state == "GAME":
+                game_manager.advance_animation()
                 frame = game_manager.get_current_frame()
                 grid_pos = renderer.pixel_to_grid(*mouse_pos)
                 available = game_manager.env.action_space if game_manager.env else []

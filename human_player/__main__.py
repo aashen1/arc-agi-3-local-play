@@ -454,8 +454,17 @@ def _check_resume(game_id, level_manager, menu_renderer, virtual_surface,
     next_level = level_manager.get_next_uncompleted_level(game_id)
     total = level_manager.get_total_levels(game_id)
 
-    if completed == 0 or next_level is None:
+    if completed == 0:
         return "new"
+
+    if level_manager.is_fully_completed(game_id):
+        current_level = level_manager.get_current_level(game_id)
+        has_playthrough = current_level is not None and current_level < total
+        return _show_completed_prompt(
+            game_id, total, current_level, has_playthrough,
+            level_manager, menu_renderer, virtual_surface,
+            screen, clock, scale_factor, offset_x, offset_y,
+        )
 
     def _scale_and_present():
         scaled_w = int(DESIGN_WIDTH * scale_factor)
@@ -498,14 +507,158 @@ def _check_resume(game_id, level_manager, menu_renderer, virtual_surface,
         clock.tick(FPS)
 
 
+def _show_completed_prompt(game_id, total, current_level, has_playthrough,
+                           level_manager, menu_renderer, virtual_surface,
+                           screen, clock, scale_factor, offset_x, offset_y):
+    def _scale_and_present():
+        scaled_w = int(DESIGN_WIDTH * scale_factor)
+        scaled_h = int(DESIGN_HEIGHT * scale_factor)
+        scaled = pygame.transform.scale(virtual_surface, (scaled_w, scaled_h))
+        screen.fill((0, 0, 0))
+        screen.blit(scaled, (offset_x, offset_y))
+        pygame.display.flip()
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if hasattr(event, 'pos') and event.type in (
+                pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+                pygame.MOUSEMOTION,
+            ):
+                dx = (event.pos[0] - offset_x) / scale_factor
+                dy = (event.pos[1] - offset_y) / scale_factor
+                event.pos = (int(dx), int(dy))
+            if event.type == pygame.KEYDOWN:
+                if has_playthrough and event.key == pygame.K_c:
+                    return "continue"
+                if event.key == pygame.K_n:
+                    return "new"
+                if event.key == pygame.K_l:
+                    result = _show_level_select(
+                        game_id, total, level_manager, menu_renderer,
+                        virtual_surface, screen, clock,
+                        scale_factor, offset_x, offset_y,
+                    )
+                    if result is not None:
+                        return result
+                if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
+                    return None
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                btn = menu_renderer.handle_button_click(event.pos)
+                if btn == "continue":
+                    return "continue"
+                if btn == "new":
+                    return "new"
+                if btn == "select":
+                    result = _show_level_select(
+                        game_id, total, level_manager, menu_renderer,
+                        virtual_surface, screen, clock,
+                        scale_factor, offset_x, offset_y,
+                    )
+                    if result is not None:
+                        return result
+                if btn == "back":
+                    return None
+
+        menu_renderer.draw_completed_prompt(
+            game_id, total, current_level, has_playthrough,
+        )
+        _scale_and_present()
+        clock.tick(FPS)
+
+
+def _show_level_select(game_id, total_levels, level_manager, menu_renderer,
+                       virtual_surface, screen, clock,
+                       scale_factor, offset_x, offset_y):
+    menu_renderer.level_input_text = ""
+    menu_renderer.level_input_active = False
+
+    def _scale_and_present():
+        scaled_w = int(DESIGN_WIDTH * scale_factor)
+        scaled_h = int(DESIGN_HEIGHT * scale_factor)
+        scaled = pygame.transform.scale(virtual_surface, (scaled_w, scaled_h))
+        screen.fill((0, 0, 0))
+        screen.blit(scaled, (offset_x, offset_y))
+        pygame.display.flip()
+
+    def _try_parse_level(text):
+        text = text.strip()
+        if not text:
+            return None
+        try:
+            num = int(text)
+        except ValueError:
+            return None
+        if 1 <= num <= total_levels:
+            return num - 1
+        return None
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if hasattr(event, 'pos') and event.type in (
+                pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+                pygame.MOUSEMOTION,
+            ):
+                dx = (event.pos[0] - offset_x) / scale_factor
+                dy = (event.pos[1] - offset_y) / scale_factor
+                event.pos = (int(dx), int(dy))
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return None
+                if event.key == pygame.K_RETURN:
+                    level_idx = _try_parse_level(menu_renderer.level_input_text)
+                    if level_idx is not None:
+                        return f"level:{level_idx}"
+                if event.key == pygame.K_BACKSPACE:
+                    menu_renderer.level_input_text = menu_renderer.level_input_text[:-1]
+                    menu_renderer.level_input_active = True
+                elif event.unicode and event.unicode.isdigit():
+                    if len(menu_renderer.level_input_text) < 3:
+                        menu_renderer.level_input_text += event.unicode
+                        menu_renderer.level_input_active = True
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                result = menu_renderer.handle_level_select_click(event.pos)
+                if result and result.startswith("level:"):
+                    return result
+                if result == "go":
+                    level_idx = _try_parse_level(menu_renderer.level_input_text)
+                    if level_idx is not None:
+                        return f"level:{level_idx}"
+                if result == "back":
+                    return None
+            if event.type == pygame.MOUSEMOTION:
+                menu_renderer.handle_level_select_hover(event.pos)
+
+        menu_renderer.draw_level_select(game_id, total_levels, level_manager)
+        _scale_and_present()
+        clock.tick(FPS)
+
+
 def _start_game(game_id, resume, game_manager, level_manager):
     if not game_manager.start_game(game_id):
         return False
 
     if resume == "continue":
-        next_level = level_manager.get_next_uncompleted_level(game_id)
-        if next_level and next_level > 0:
-            game_manager.jump_to_level(next_level)
+        if level_manager.is_fully_completed(game_id):
+            current_level = level_manager.get_current_level(game_id)
+            if current_level is not None and current_level > 0:
+                game_manager.jump_to_level(current_level)
+        else:
+            next_level = level_manager.get_next_uncompleted_level(game_id)
+            if next_level and next_level > 0:
+                game_manager.jump_to_level(next_level)
+    elif isinstance(resume, str) and resume.startswith("level:"):
+        level_index = int(resume.split(":")[1])
+        game_manager.jump_to_level(level_index)
+        level_manager.set_current_level(game_id, level_index)
+    elif resume == "new":
+        if level_manager.is_fully_completed(game_id):
+            level_manager.set_current_level(game_id, 0)
     return True
 
 
@@ -520,6 +673,11 @@ def _handle_win(game_manager, level_manager, stats_manager,
 
     if game_manager.max_levels > 0:
         level_manager.update_total_levels(game_manager.game_id, game_manager.max_levels)
+
+    if level_manager.is_fully_completed(game_manager.game_id):
+        level_manager.set_current_level(
+            game_manager.game_id, game_manager.levels_completed,
+        )
 
     stats_manager.record_attempt(
         game_manager.game_id, level_index, steps, time_ms, "WIN", session_id,

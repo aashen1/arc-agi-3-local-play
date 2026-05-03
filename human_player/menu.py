@@ -36,6 +36,10 @@ class MenuRenderer:
         self.scrollbar_track_rect = None
         self.scrollbar_thumb_rect = None
         self.toggle_rect = pygame.Rect(0, 0, 0, 0)
+        self.level_rects = []
+        self.level_hover = -1
+        self.level_input_text = ""
+        self.level_input_active = False
 
     def _content_height(self) -> int:
         return WINDOW_HEIGHT - self.CONTENT_TOP - self.CONTENT_BOTTOM
@@ -170,6 +174,10 @@ class MenuRenderer:
 
             if is_fully_completed:
                 self._draw_checkmark(rect.right - 18, rect.y + 6, 12)
+                cur_lv = level_manager.get_current_level(gid)
+                if cur_lv is not None and cur_lv < total:
+                    pt_text = self.font_small.render(f"L{cur_lv + 1}", True, COLOR_HIGHLIGHT)
+                    self.screen.blit(pt_text, (rect.x + 4, rect.y + 4))
 
     def _draw_list_menu(self, games, level_manager, last_played_id):
         margin_x = 20
@@ -232,6 +240,10 @@ class MenuRenderer:
 
             if is_fully_completed:
                 self._draw_checkmark(rect.right - 22, rect.y + 28, 14)
+                cur_lv = level_manager.get_current_level(gid)
+                if cur_lv is not None and cur_lv < total:
+                    pt_text = self.font_small.render(f"L{cur_lv + 1}", True, COLOR_HIGHLIGHT)
+                    self.screen.blit(pt_text, (rect.x + 44, rect.y + 42))
 
     def _draw_scrollbar(self, max_scroll):
         track_x = WINDOW_WIDTH - self.SCROLLBAR_W
@@ -568,6 +580,179 @@ class MenuRenderer:
             lbl = self.font_small.render(labels[name], True, COLOR_TEXT)
             self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
                                    rect.y + rect.h // 2 - lbl.get_height() // 2))
+
+    def draw_completed_prompt(self, game_id, total, current_level, has_playthrough):
+        self.screen.fill(COLOR_BG)
+        self.button_rects = {}
+
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 100))
+        self.screen.blit(overlay, (0, 0))
+
+        box_w = 460
+        box_h = 260 if has_playthrough else 220
+        box_x = (WINDOW_WIDTH - box_w) // 2
+        box_y = (WINDOW_HEIGHT - box_h) // 2
+        pygame.draw.rect(self.screen, COLOR_PANEL, (box_x, box_y, box_w, box_h), border_radius=8)
+        pygame.draw.rect(self.screen, COLOR_WIN, (box_x, box_y, box_w, box_h), 2, border_radius=8)
+
+        title = self.font_large.render("All Levels Completed!", True, COLOR_WIN)
+        self.screen.blit(title, (box_x + 20, box_y + 15))
+
+        self._draw_checkmark(box_x + box_w - 35, box_y + 14, 18)
+
+        info = self.font_medium.render(
+            f"{game_id}: {total}/{total}", True, COLOR_TEXT,
+        )
+        self.screen.blit(info, (box_x + 20, box_y + 50))
+
+        if has_playthrough and current_level is not None:
+            pt_info = self.font_medium.render(
+                f"New playthrough: Level {current_level + 1}", True, COLOR_HIGHLIGHT,
+            )
+            self.screen.blit(pt_info, (box_x + 20, box_y + 72))
+
+        btn_y_start = box_y + (100 if has_playthrough else 90)
+
+        if has_playthrough:
+            cont_rect = pygame.Rect(box_x + 20, btn_y_start, 130, 36)
+            new_rect = pygame.Rect(box_x + 160, btn_y_start, 130, 36)
+            sel_rect = pygame.Rect(box_x + 300, btn_y_start, 140, 36)
+            back_rect = pygame.Rect(box_x + 140, btn_y_start + 50, 180, 36)
+            self.button_rects = {
+                "continue": cont_rect,
+                "new": new_rect,
+                "select": sel_rect,
+                "back": back_rect,
+            }
+        else:
+            new_rect = pygame.Rect(box_x + 40, btn_y_start, 170, 36)
+            sel_rect = pygame.Rect(box_x + 240, btn_y_start, 180, 36)
+            back_rect = pygame.Rect(box_x + 140, btn_y_start + 50, 180, 36)
+            self.button_rects = {
+                "new": new_rect,
+                "select": sel_rect,
+                "back": back_rect,
+            }
+
+        for name, rect in self.button_rects.items():
+            pygame.draw.rect(self.screen, COLOR_PANEL, rect, border_radius=4)
+            border_color = COLOR_WIN if name == "continue" else COLOR_ACCENT
+            pygame.draw.rect(self.screen, border_color, rect, 1, border_radius=4)
+            labels = {
+                "continue": "[C] Continue",
+                "new": "[N] New Game",
+                "select": "[L] Select Level",
+                "back": "[Q] Back",
+            }
+            lbl = self.font_small.render(labels[name], True, COLOR_TEXT)
+            self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
+                                   rect.y + rect.h // 2 - lbl.get_height() // 2))
+
+    def draw_level_select(self, game_id, total_levels, level_manager):
+        self.screen.fill(COLOR_BG)
+        self.button_rects = {}
+        self.level_rects = []
+
+        title = self.font_large.render(f"Select Level - {game_id}", True, COLOR_ACCENT)
+        self.screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 15))
+
+        current_level = level_manager.get_current_level(game_id)
+
+        cols = 5
+        margin_x = 16
+        margin_y = 10
+        grid_top = 55
+        available_w = WINDOW_WIDTH - margin_x * 2
+        cell_w = (available_w - (cols - 1) * margin_x) // cols
+        cell_h = 64
+
+        for i in range(total_levels):
+            col = i % cols
+            row = i // cols
+            x = margin_x + col * (cell_w + margin_x)
+            y = grid_top + row * (cell_h + margin_y)
+
+            rect = pygame.Rect(x, y, cell_w, cell_h)
+            self.level_rects.append(rect)
+
+            info = level_manager.get_level_info(game_id, i)
+            is_completed = info["completed"]
+            is_current = (current_level is not None and i == current_level)
+            is_hover = (i == self.level_hover)
+
+            if is_current:
+                bg = (50, 55, 30)
+            elif is_hover:
+                bg = (50, 50, 70)
+            else:
+                bg = COLOR_PANEL
+
+            pygame.draw.rect(self.screen, bg, rect, border_radius=6)
+
+            border = COLOR_HIGHLIGHT if is_current else (COLOR_WIN if is_completed else COLOR_ACCENT)
+            pygame.draw.rect(self.screen, border, rect, 1, border_radius=6)
+
+            num_text = self.font_cell_id.render(f"{i + 1}", True, COLOR_TEXT)
+            self.screen.blit(num_text, (rect.x + rect.w // 2 - num_text.get_width() // 2,
+                                        rect.y + 8))
+
+            if is_completed:
+                self._draw_checkmark(rect.right - 16, rect.y + 4, 10)
+                if info.get("best_steps") is not None:
+                    bs_text = self.font_small.render(
+                        f"{info['best_steps']}s", True, COLOR_TEXT_DIM,
+                    )
+                    self.screen.blit(bs_text, (rect.x + rect.w // 2 - bs_text.get_width() // 2,
+                                               rect.y + 34))
+            else:
+                dash = self.font_small.render("--", True, COLOR_TEXT_DIM)
+                self.screen.blit(dash, (rect.x + rect.w // 2 - dash.get_width() // 2,
+                                        rect.y + 34))
+
+        input_y = WINDOW_HEIGHT - 90
+        input_label = self.font_medium.render("Go to level:", True, COLOR_TEXT)
+        self.screen.blit(input_label, (60, input_y))
+
+        input_rect = pygame.Rect(180, input_y - 2, 120, 30)
+        border_color = COLOR_HIGHLIGHT if self.level_input_active else COLOR_ACCENT
+        pygame.draw.rect(self.screen, COLOR_PANEL, input_rect, border_radius=4)
+        pygame.draw.rect(self.screen, border_color, input_rect, 2, border_radius=4)
+
+        display_text = self.level_input_text + ("|" if self.level_input_active else "")
+        input_render = self.font_medium.render(display_text, True, COLOR_TEXT)
+        self.screen.blit(input_render, (input_rect.x + 8, input_rect.y + 5))
+
+        go_rect = pygame.Rect(310, input_y - 2, 60, 30)
+        pygame.draw.rect(self.screen, COLOR_ACCENT, go_rect, border_radius=4)
+        go_lbl = self.font_small.render("Go", True, COLOR_BG)
+        self.screen.blit(go_lbl, (go_rect.x + go_rect.w // 2 - go_lbl.get_width() // 2,
+                                  go_rect.y + go_rect.h // 2 - go_lbl.get_height() // 2))
+        self.button_rects["go"] = go_rect
+
+        back_rect = pygame.Rect(WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT - 45, 120, 36)
+        self.button_rects["back"] = back_rect
+        pygame.draw.rect(self.screen, COLOR_PANEL, back_rect, border_radius=4)
+        pygame.draw.rect(self.screen, COLOR_ACCENT, back_rect, 1, border_radius=4)
+        lbl = self.font_small.render("[ESC] Back", True, COLOR_TEXT)
+        self.screen.blit(lbl, (back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
+                               back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
+
+    def handle_level_select_click(self, pos) -> str | None:
+        for i, rect in enumerate(self.level_rects):
+            if rect.collidepoint(pos):
+                return f"level:{i}"
+        for name, rect in self.button_rects.items():
+            if rect.collidepoint(pos):
+                return name
+        return None
+
+    def handle_level_select_hover(self, pos):
+        self.level_hover = -1
+        for i, rect in enumerate(self.level_rects):
+            if rect.collidepoint(pos):
+                self.level_hover = i
+                break
 
     def _draw_progress_bar(self, x, y, w, completed, total):
         h = 6

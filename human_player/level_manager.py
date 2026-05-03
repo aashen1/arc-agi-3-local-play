@@ -110,6 +110,18 @@ class LevelManager:
             "attempts": level.get("attempts", 0),
         }
 
+    def get_current_level(self, game_id: str) -> int | None:
+        game = self.get_game_progress(game_id)
+        return game.get("current_level")
+
+    def set_current_level(self, game_id: str, level_index: int):
+        if "games" not in self.progress:
+            self.progress["games"] = {}
+        if game_id not in self.progress["games"]:
+            self.progress["games"][game_id] = {"levels": {}, "total_levels": 0}
+        self.progress["games"][game_id]["current_level"] = level_index
+        self._save_progress()
+
     def get_last_played_game_id(self) -> str | None:
         latest_time = None
         latest_game = None

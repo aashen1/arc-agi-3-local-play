@@ -94,6 +94,17 @@ class LevelManager:
         level = game.get("levels", {}).get(str(level_index), {})
         return level.get("best_time_ms")
 
+    def get_last_played_game_id(self) -> str | None:
+        latest_time = None
+        latest_game = None
+        for game_id, game in self.progress.get("games", {}).items():
+            for level_data in game.get("levels", {}).values():
+                ts = level_data.get("completed_at")
+                if ts and (latest_time is None or ts > latest_time):
+                    latest_time = ts
+                    latest_game = game_id
+        return latest_game
+
     def _load_progress(self) -> dict:
         if os.path.exists(self._progress_file):
             with open(self._progress_file, "r", encoding="utf-8") as f:

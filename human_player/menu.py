@@ -4,26 +4,67 @@ from human_player.config import (
     WINDOW_WIDTH, WINDOW_HEIGHT,
     COLOR_BG, COLOR_PANEL, COLOR_TEXT, COLOR_TEXT_DIM,
     COLOR_HIGHLIGHT, COLOR_WIN, COLOR_GAMEOVER, COLOR_ACCENT,
-    ACTION_LABELS, get_keymap_scheme, get_key_labels,
+    ACTION_LABELS, get_keymap_scheme, get_key_labels, get_view_mode, set_view_mode,
 )
 
 
 class MenuRenderer:
+    GRID_COLS = 5
+    GRID_CELL_H = 88
+    LIST_ITEM_H = 56
+    SCROLLBAR_W = 12
+    CONTENT_TOP = 90
+    CONTENT_BOTTOM = 60
+
     def __init__(self, screen: pygame.Surface):
         self.screen = screen
         self.font_title = pygame.font.SysFont("consolas", 32, bold=True)
         self.font_large = pygame.font.SysFont("consolas", 22, bold=True)
         self.font_medium = pygame.font.SysFont("consolas", 16)
         self.font_small = pygame.font.SysFont("consolas", 13)
+        self.font_cell_id = pygame.font.SysFont("consolas", 18, bold=True)
         self.hover_index = -1
+        self.button_hover = None
         self.game_rects = []
         self.button_rects = {}
         self.player_rects = []
+        self.view_mode = get_view_mode()
+        self.scroll_offset = 0
+        self.scroll_dragging = False
+        self.scroll_drag_start_y = 0
+        self.scroll_drag_start_offset = 0
+        self.scrollbar_track_rect = None
+        self.scrollbar_thumb_rect = None
+        self.toggle_rect = pygame.Rect(0, 0, 0, 0)
+
+    def _content_height(self) -> int:
+        return WINDOW_HEIGHT - self.CONTENT_TOP - self.CONTENT_BOTTOM
+
+    def _max_scroll(self, games) -> int:
+        if self.view_mode == "grid":
+            rows = (len(games) + self.GRID_COLS - 1) // self.GRID_COLS
+            total_h = rows * self.GRID_CELL_H
+        else:
+            total_h = len(games) * self.LIST_ITEM_H
+        return max(0, total_h - self._content_height())
+
+    def clamp_scroll(self, games):
+        self.scroll_offset = max(0, min(self.scroll_offset, self._max_scroll(games)))
+
+    def toggle_view_mode(self):
+        if self.view_mode == "grid":
+            self.view_mode = "list"
+        else:
+            self.view_mode = "grid"
+        set_view_mode(self.view_mode)
+        self.scroll_offset = 0
 
     def draw_main_menu(self, games, level_manager, keymap_scheme, current_player="default"):
         self.screen.fill(COLOR_BG)
         self.game_rects = []
         self.button_rects = {}
+        self.scrollbar_track_rect = None
+        self.scrollbar_thumb_rect = None
 
         title = self.font_title.render("ARC-AGI-3", True, COLOR_ACCENT)
         subtitle = self.font_medium.render("Human Player Console", True, COLOR_TEXT_DIM)
@@ -31,28 +72,85 @@ class MenuRenderer:
         self.screen.blit(subtitle, (WINDOW_WIDTH // 2 - subtitle.get_width() // 2, 58))
 
         player_text = self.font_small.render(f"Player: {current_player}", True, COLOR_HIGHLIGHT)
-        self.screen.blit(player_text, (WINDOW_WIDTH - player_text.get_width() - 12, 10))
+        self.screen.blit(player_text, (WINDOW_WIDTH - player_text.get_width() - 90, 10))
 
-        y = 100
+        toggle_label = "List" if self.view_mode == "grid" else "Grid"
+        toggle_icon = "=" if self.view_mode == "grid" else "#"
+        toggle_surf = self.font_small.render(f"[{toggle_icon}] {toggle_label}", True, COLOR_TEXT)
+        tw = toggle_surf.get_width() + 16
+        self.toggle_rect = pygame.Rect(WINDOW_WIDTH - tw - 8, 8, tw, 24)
+        is_toggle_hover = self.button_hover == "toggle"
+        toggle_bg = (60, 60, 80) if is_toggle_hover else COLOR_PANEL
+        pygame.draw.rect(self.screen, toggle_bg, self.toggle_rect, border_radius=3)
+        pygame.draw.rect(self.screen, COLOR_ACCENT, self.toggle_rect, 1, border_radius=3)
+        self.screen.blit(toggle_surf, (self.toggle_rect.x + 8, self.toggle_rect.y + 4))
+
+        last_played_id = level_manager.get_last_played_game_id()
+
+        content_rect = pygame.Rect(
+            0, self.CONTENT_TOP, WINDOW_WIDTH - self.SCROLLBAR_W, self._content_height()
+        )
+        clip_prev = self.screen.get_clip()
+        self.screen.set_clip(content_rect)
+
+        if self.view_mode == "grid":
+            self._draw_grid_menu(games, level_manager, last_played_id)
+        else:
+            self._draw_list_menu(games, level_manager, last_played_id)
+
+        self.screen.set_clip(clip_prev)
+
+        max_scroll = self._max_scroll(games)
+        if max_scroll > 0:
+            self._draw_scrollbar(max_scroll)
+
+        self._draw_bottom_buttons()
+
+        hint = self.font_small.render(
+            "Click a game or press number key to start", True, COLOR_TEXT_DIM,
+        )
+        self.screen.blit(hint, (WINDOW_WIDTH // 2 - hint.get_width() // 2, WINDOW_HEIGHT - 85))
+
+    def _draw_grid_menu(self, games, level_manager, last_played_id):
+        cols = self.GRID_COLS
+        margin_x = 20
+        margin_y = 6
+        available_w = WINDOW_WIDTH - self.SCROLLBAR_W - margin_x * 2
+        cell_w = (available_w - (cols - 1) * margin_x) // cols
+        cell_h = self.GRID_CELL_H
+        base_y = self.CONTENT_TOP - self.scroll_offset
+
         for i, game in enumerate(games):
+            col = i % cols
+            row = i // cols
+            x = margin_x + col * (cell_w + margin_x)
+            y = base_y + row * (cell_h + margin_y)
+
+            if y + cell_h < self.CONTENT_TOP or y > self.CONTENT_TOP + self._content_height():
+                self.game_rects.append(pygame.Rect(x, y, cell_w, cell_h))
+                continue
+
             gid = game.game_id
-            title_str = getattr(game, 'title', gid)
-            tags = ", ".join(getattr(game, 'tags', []))
             completed = level_manager.get_completed_count(gid)
             total = level_manager.get_total_levels(gid)
+            is_last_played = (gid == last_played_id)
+            is_fully_completed = (total > 0 and completed >= total)
 
-            rect = pygame.Rect(40, y, WINDOW_WIDTH - 80, 52)
+            rect = pygame.Rect(x, y, cell_w, cell_h)
             self.game_rects.append(rect)
 
             bg_color = (50, 50, 70) if i == self.hover_index else COLOR_PANEL
             pygame.draw.rect(self.screen, bg_color, rect, border_radius=6)
-            pygame.draw.rect(self.screen, COLOR_ACCENT, rect, 1, border_radius=6)
 
-            idx_text = self.font_large.render(f"{i + 1}", True, COLOR_HIGHLIGHT)
-            self.screen.blit(idx_text, (rect.x + 12, rect.y + 14))
+            if is_last_played:
+                pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, (rect.x, rect.y + 4, 3, rect.h - 8), border_radius=1)
+                pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, rect, 1, border_radius=6)
+            else:
+                pygame.draw.rect(self.screen, COLOR_ACCENT, rect, 1, border_radius=6)
 
-            name_text = self.font_medium.render(f"{gid} - {title_str}", True, COLOR_TEXT)
-            self.screen.blit(name_text, (rect.x + 50, rect.y + 8))
+            id_text = self.font_cell_id.render(gid, True, COLOR_TEXT)
+            self.screen.blit(id_text, (rect.x + rect.w // 2 - id_text.get_width() // 2,
+                                       rect.y + 10))
 
             if total > 0:
                 prog = f"{completed}/{total}"
@@ -61,14 +159,105 @@ class MenuRenderer:
             else:
                 prog = "--"
             prog_text = self.font_small.render(prog, True, COLOR_TEXT_DIM)
-            self.screen.blit(prog_text, (rect.x + 50, rect.y + 30))
+            self.screen.blit(prog_text, (rect.x + rect.w // 2 - prog_text.get_width() // 2,
+                                         rect.y + 34))
+
+            bar_x = rect.x + 10
+            bar_y = rect.y + 52
+            bar_w = rect.w - 20
+            self._draw_progress_bar(bar_x, bar_y, bar_w, completed, total)
+
+            if is_fully_completed:
+                self._draw_checkmark(rect.right - 18, rect.y + 6, 12)
+
+    def _draw_list_menu(self, games, level_manager, last_played_id):
+        margin_x = 20
+        item_w = WINDOW_WIDTH - self.SCROLLBAR_W - margin_x * 2
+        item_h = self.LIST_ITEM_H
+        base_y = self.CONTENT_TOP - self.scroll_offset
+
+        for i, game in enumerate(games):
+            y = base_y + i * item_h
+
+            if y + item_h < self.CONTENT_TOP or y > self.CONTENT_TOP + self._content_height():
+                self.game_rects.append(pygame.Rect(margin_x, y, item_w, item_h))
+                continue
+
+            gid = game.game_id
+            title_str = getattr(game, 'title', gid)
+            tags = ", ".join(getattr(game, 'tags', []))
+            completed = level_manager.get_completed_count(gid)
+            total = level_manager.get_total_levels(gid)
+            is_last_played = (gid == last_played_id)
+            is_fully_completed = (total > 0 and completed >= total)
+
+            rect = pygame.Rect(margin_x, y, item_w, item_h)
+            self.game_rects.append(rect)
+
+            bg_color = (50, 50, 70) if i == self.hover_index else COLOR_PANEL
+            pygame.draw.rect(self.screen, bg_color, rect, border_radius=6)
+
+            if is_last_played:
+                pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, (rect.x, rect.y + 4, 3, rect.h - 8), border_radius=1)
+                pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, rect, 1, border_radius=6)
+            else:
+                pygame.draw.rect(self.screen, COLOR_ACCENT, rect, 1, border_radius=6)
+
+            idx_text = self.font_large.render(f"{i + 1}", True, COLOR_HIGHLIGHT)
+            self.screen.blit(idx_text, (rect.x + 10, rect.y + 6))
+
+            name_text = self.font_medium.render(f"{gid} - {title_str}", True, COLOR_TEXT)
+            self.screen.blit(name_text, (rect.x + 44, rect.y + 6))
+
+            if total > 0:
+                prog = f"{completed}/{total}"
+            elif completed > 0:
+                prog = f"{completed} done"
+            else:
+                prog = "--"
+            prog_text = self.font_small.render(prog, True, COLOR_TEXT_DIM)
+            self.screen.blit(prog_text, (rect.x + 44, rect.y + 28))
+
+            if total > 0:
+                bar_x = rect.x + 44 + prog_text.get_width() + 8
+                bar_y = rect.y + 32
+                bar_w = min(120, rect.right - bar_x - (40 if is_fully_completed else 12))
+                if bar_w > 20:
+                    self._draw_progress_bar(bar_x, bar_y, bar_w, completed, total)
 
             if tags:
                 tag_text = self.font_small.render(tags, True, COLOR_TEXT_DIM)
-                self.screen.blit(tag_text, (rect.right - tag_text.get_width() - 12, rect.y + 18))
+                self.screen.blit(tag_text, (rect.right - tag_text.get_width() - 12, rect.y + 8))
 
-            y += 60
+            if is_fully_completed:
+                self._draw_checkmark(rect.right - 22, rect.y + 28, 14)
 
+    def _draw_scrollbar(self, max_scroll):
+        track_x = WINDOW_WIDTH - self.SCROLLBAR_W
+        track_y = self.CONTENT_TOP
+        track_h = self._content_height()
+        self.scrollbar_track_rect = pygame.Rect(track_x, track_y, self.SCROLLBAR_W, track_h)
+
+        pygame.draw.rect(self.screen, (25, 25, 35), self.scrollbar_track_rect)
+
+        content_h = self._content_height()
+        if self.view_mode == "grid":
+            rows = (len(self.game_rects) + self.GRID_COLS - 1) // self.GRID_COLS
+            total_h = rows * self.GRID_CELL_H
+        else:
+            total_h = len(self.game_rects) * self.LIST_ITEM_H
+
+        if total_h <= 0:
+            return
+
+        thumb_h = max(20, int(content_h * content_h / total_h))
+        thumb_y = track_y + int((content_h - thumb_h) * (self.scroll_offset / max_scroll)) if max_scroll > 0 else track_y
+        self.scrollbar_thumb_rect = pygame.Rect(track_x + 2, thumb_y, self.SCROLLBAR_W - 4, thumb_h)
+
+        thumb_color = COLOR_HIGHLIGHT if self.scroll_dragging else COLOR_ACCENT
+        pygame.draw.rect(self.screen, thumb_color, self.scrollbar_thumb_rect, border_radius=4)
+
+    def _draw_bottom_buttons(self):
         btn_y = WINDOW_HEIGHT - 50
         player_rect = pygame.Rect(40, btn_y, 140, 36)
         settings_rect = pygame.Rect(200, btn_y, 120, 36)
@@ -82,8 +271,11 @@ class MenuRenderer:
         }
 
         for name, rect in self.button_rects.items():
-            pygame.draw.rect(self.screen, COLOR_PANEL, rect, border_radius=4)
-            pygame.draw.rect(self.screen, COLOR_ACCENT, rect, 1, border_radius=4)
+            is_hovered = (self.button_hover == name)
+            bg = (60, 60, 80) if is_hovered else COLOR_PANEL
+            border = COLOR_HIGHLIGHT if is_hovered else COLOR_ACCENT
+            pygame.draw.rect(self.screen, bg, rect, border_radius=4)
+            pygame.draw.rect(self.screen, border, rect, 1, border_radius=4)
             labels = {
                 "player": "[P] Player",
                 "settings": "[S] Settings",
@@ -94,26 +286,78 @@ class MenuRenderer:
             self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
                                    rect.y + rect.h // 2 - lbl.get_height() // 2))
 
-        hint = self.font_small.render(
-            "Click a game or press number key to start", True, COLOR_TEXT_DIM,
-        )
-        self.screen.blit(hint, (WINDOW_WIDTH // 2 - hint.get_width() // 2, WINDOW_HEIGHT - 85))
-
     def handle_main_menu_click(self, pos) -> str | None:
+        if self.toggle_rect.collidepoint(pos):
+            return "toggle_view"
+        content_top = self.CONTENT_TOP
+        content_bottom = self.CONTENT_TOP + self._content_height()
         for i, rect in enumerate(self.game_rects):
-            if rect.collidepoint(pos):
+            if rect.collidepoint(pos) and rect.bottom > content_top and rect.top < content_bottom:
                 return f"game:{i}"
         for name, rect in self.button_rects.items():
             if rect.collidepoint(pos):
                 return name
-        return None
+        if self.scrollbar_thumb_rect and self.scrollbar_thumb_rect.collidepoint(pos):
+            return "scrollbar_thumb"
+        if self.scrollbar_track_rect and self.scrollbar_track_rect.collidepoint(pos):
+            return "scrollbar_track"
+        return False
 
     def handle_main_menu_hover(self, pos):
         self.hover_index = -1
+        self.button_hover = None
+        content_top = self.CONTENT_TOP
+        content_bottom = self.CONTENT_TOP + self._content_height()
         for i, rect in enumerate(self.game_rects):
-            if rect.collidepoint(pos):
+            if rect.collidepoint(pos) and rect.bottom > content_top and rect.top < content_bottom:
                 self.hover_index = i
                 break
+        for name, rect in self.button_rects.items():
+            if rect.collidepoint(pos):
+                self.button_hover = name
+                break
+        if self.toggle_rect.collidepoint(pos):
+            self.button_hover = "toggle"
+
+    def handle_scroll(self, y_scroll, games):
+        step = self.GRID_CELL_H if self.view_mode == "grid" else self.LIST_ITEM_H
+        self.scroll_offset -= y_scroll * step
+        self.clamp_scroll(games)
+
+    def start_scroll_drag(self, mouse_y):
+        self.scroll_dragging = True
+        self.scroll_drag_start_y = mouse_y
+        self.scroll_drag_start_offset = self.scroll_offset
+
+    def update_scroll_drag(self, mouse_y, games):
+        if not self.scroll_dragging:
+            return
+        delta_y = mouse_y - self.scroll_drag_start_y
+        content_h = self._content_height()
+        if self.view_mode == "grid":
+            rows = (len(games) + self.GRID_COLS - 1) // self.GRID_COLS
+            total_h = rows * self.GRID_CELL_H
+        else:
+            total_h = len(games) * self.LIST_ITEM_H
+        if total_h <= content_h:
+            return
+        ratio = total_h / content_h
+        self.scroll_offset = self.scroll_drag_start_offset + int(delta_y * ratio)
+        self.clamp_scroll(games)
+
+    def end_scroll_drag(self):
+        self.scroll_dragging = False
+
+    def handle_scrollbar_track_click(self, pos, games):
+        if not self.scrollbar_track_rect:
+            return
+        max_scroll = self._max_scroll(games)
+        if max_scroll <= 0:
+            return
+        track_h = self.scrollbar_track_rect.h
+        click_ratio = (pos[1] - self.scrollbar_track_rect.y) / track_h
+        self.scroll_offset = int(click_ratio * max_scroll)
+        self.clamp_scroll(games)
 
     def draw_player_select(self, players, current_player, input_text="", input_active=False):
         self.screen.fill(COLOR_BG)
@@ -323,6 +567,22 @@ class MenuRenderer:
             lbl = self.font_small.render(labels[name], True, COLOR_TEXT)
             self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
                                    rect.y + rect.h // 2 - lbl.get_height() // 2))
+
+    def _draw_progress_bar(self, x, y, w, completed, total):
+        h = 6
+        pygame.draw.rect(self.screen, (60, 60, 60), (x, y, w, h), border_radius=3)
+        if total > 0 and completed > 0:
+            fill_w = max(3, int(w * completed / total))
+            pygame.draw.rect(self.screen, COLOR_WIN, (x, y, fill_w, h), border_radius=3)
+
+    def _draw_checkmark(self, x, y, size):
+        s = size
+        pts = [
+            (x + s * 0.1, y + s * 0.5),
+            (x + s * 0.35, y + s * 0.8),
+            (x + s * 0.9, y + s * 0.15),
+        ]
+        pygame.draw.lines(self.screen, COLOR_WIN, False, pts, 2)
 
     def handle_button_click(self, pos) -> str | None:
         for name, rect in self.button_rects.items():

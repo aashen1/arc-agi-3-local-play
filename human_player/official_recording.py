@@ -208,14 +208,19 @@ class OfficialRecordingManager:
         frame = getattr(obs, 'frame', None)
         if frame is None:
             return []
-        if isinstance(frame, list):
-            if frame and isinstance(frame[0], list) and isinstance(frame[0][0], list):
-                return frame[0]
-            return frame
+        return self._to_json_serializable(frame)
+
+    def _to_json_serializable(self, obj):
         import numpy as np
-        if isinstance(frame, np.ndarray):
-            return frame.tolist()
-        return []
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, list):
+            return [self._to_json_serializable(item) for item in obj]
+        if isinstance(obj, dict):
+            return {k: self._to_json_serializable(v) for k, v in obj.items()}
+        if isinstance(obj, (int, float, str, bool, type(None))):
+            return obj
+        return str(obj)
 
     def _update_index(self, final_state: str) -> None:
         game_id = self._game_id

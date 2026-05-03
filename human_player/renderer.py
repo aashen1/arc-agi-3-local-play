@@ -256,7 +256,7 @@ class Renderer:
             best = self.font_small.render(f"Best: {best_steps} steps", True, COLOR_TEXT_DIM)
             self.screen.blit(best, (box_x + 20, box_y + 92))
 
-        hint = self.font_small.render("Press any key to continue...", True, COLOR_TEXT_DIM)
+        hint = self.font_small.render("Press any key or click to continue...", True, COLOR_TEXT_DIM)
         self.screen.blit(hint, (box_x + 20, box_y + box_h - 30))
 
     def draw_overlay_game_over(self, step_count):
@@ -323,5 +323,5 @@ class Renderer:
         )
         self.screen.blit(info, (box_x + 20, box_y + 60))
 
-        hint = self.font_small.render("Press any key to return to menu...", True, COLOR_TEXT_DIM)
+        hint = self.font_small.render("Press any key or click to return to menu...", True, COLOR_TEXT_DIM)
         self.screen.blit(hint, (box_x + 20, box_y + box_h - 30))

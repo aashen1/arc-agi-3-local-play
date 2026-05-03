@@ -307,21 +307,28 @@ class Renderer:
         overlay.fill((0, 0, 0, 160))
         self.screen.blit(overlay, (0, 0))
 
-        box_w, box_h = 400, 180
+        box_w, box_h = 400, 200
         box_x = (WINDOW_WIDTH - box_w) // 2
         box_y = (WINDOW_HEIGHT - box_h) // 2
         pygame.draw.rect(self.screen, (30, 50, 30), (box_x, box_y, box_w, box_h), border_radius=8)
         pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, (box_x, box_y, box_w, box_h), 2, border_radius=8)
 
         title = self.font_large.render("ALL LEVELS COMPLETE!", True, COLOR_HIGHLIGHT)
-        self.screen.blit(title, (box_x + 20, box_y + 20))
+        title_x = box_x + (box_w - title.get_width()) // 2
+        self.screen.blit(title, (title_x, box_y + 20))
+
+        game_text = self.font_medium.render(f"Game: {game_id}", True, COLOR_TEXT)
+        game_x = box_x + (box_w - game_text.get_width()) // 2
+        self.screen.blit(game_text, (game_x, box_y + 60))
 
         elapsed_s = total_time_ms // 1000
-        info = self.font_medium.render(
-            f"Game: {game_id}  Steps: {total_steps}  Time: {elapsed_s // 60:02d}:{elapsed_s % 60:02d}",
+        stats_text = self.font_medium.render(
+            f"Steps: {total_steps}   Time: {elapsed_s // 60:02d}:{elapsed_s % 60:02d}",
             True, COLOR_TEXT,
         )
-        self.screen.blit(info, (box_x + 20, box_y + 60))
+        stats_x = box_x + (box_w - stats_text.get_width()) // 2
+        self.screen.blit(stats_text, (stats_x, box_y + 88))
 
         hint = self.font_small.render("Press any key or click to return to menu...", True, COLOR_TEXT_DIM)
-        self.screen.blit(hint, (box_x + 20, box_y + box_h - 30))
+        hint_x = box_x + (box_w - hint.get_width()) // 2
+        self.screen.blit(hint, (hint_x, box_y + box_h - 30))

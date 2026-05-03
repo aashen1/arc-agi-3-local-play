@@ -13,6 +13,10 @@ USER_CONFIG_FILE = os.path.join(DATA_DIR, "user_config.json")
 
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 640
+DESIGN_WIDTH = 800
+DESIGN_HEIGHT = 640
+MIN_WINDOW_WIDTH = 800
+MIN_WINDOW_HEIGHT = 640
 FPS = 30
 
 CELL_SIZE = 9
@@ -140,3 +144,13 @@ def get_keymap() -> dict:
 
 def get_key_labels() -> dict:
     return WASD_KEY_LABELS if get_keymap_scheme() == "wasd" else ARROW_KEY_LABELS
+
+
+def get_view_mode() -> str:
+    return _load_user_config().get("view_mode", "grid")
+
+
+def set_view_mode(mode: str):
+    cfg = _load_user_config()
+    cfg["view_mode"] = mode
+    _save_user_config(cfg)

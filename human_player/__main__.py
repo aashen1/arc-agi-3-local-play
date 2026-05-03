@@ -216,9 +216,14 @@ def main():
                         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                             game_manager.skip_animation()
                     else:
-                        action_result = _handle_game_event(
-                            event, game_manager, renderer,
-                        )
+                        if event.type == pygame.MOUSEMOTION:
+                            renderer.update_bottom_button_hover(event.pos)
+                        if overlay_state:
+                            pass
+                        else:
+                            action_result = _handle_game_event(
+                                event, game_manager, renderer,
+                            )
                     if action_result == "exit":
                         final_state = "NOT_FINISHED"
                         if game_manager.env:
@@ -303,9 +308,24 @@ def main():
                             game_manager.level_start_time = time.time()
                             game_over_recorded = False
                         elif overlay_state == "game_over":
-                            overlay_state = None
-                            game_manager.reset_level()
-                            game_over_recorded = False
+                            btn = renderer.check_overlay_button_click(event.pos)
+                            if btn == "reset":
+                                overlay_state = None
+                                game_manager.reset_level()
+                                game_over_recorded = False
+                            elif btn == "menu":
+                                recording_manager.end_session()
+                                if official_recording.is_recording:
+                                    official_recording.end_session("GAME_OVER")
+                                game_manager.close_game()
+                                state = "MAIN_MENU"
+                                games = game_manager.list_games()
+                                overlay_state = None
+                                continue
+                            else:
+                                overlay_state = None
+                                game_manager.reset_level()
+                                game_over_recorded = False
                         elif overlay_state == "all_complete":
                             recording_manager.end_session()
                             if official_recording.is_recording:
@@ -439,6 +459,14 @@ def _handle_game_event(event, game_manager, renderer):
             return (keymap[event.key], None)
 
     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        button_action = renderer.check_bottom_button_click(event.pos)
+        if button_action == "menu":
+            return "exit"
+        elif button_action == "reset":
+            return (GameAction.RESET, None)
+        elif button_action == "undo":
+            return (GameAction.ACTION7, None)
+
         gx, gy = renderer.pixel_to_grid(*event.pos)
         if gx is not None and gy is not None:
             available = game_manager.env.action_space if game_manager.env else []

@@ -8,6 +8,7 @@ from human_player.config import (
     HUD_TOP_H, HUD_BOTTOM_H, PANEL_WIDTH, WINDOW_WIDTH, WINDOW_HEIGHT,
     ARC_PALETTE, COLOR_BG, COLOR_PANEL, COLOR_TEXT, COLOR_TEXT_DIM,
     COLOR_HIGHLIGHT, COLOR_WIN, COLOR_GAMEOVER, COLOR_ACCENT,
+    COLOR_BUTTON_BG, COLOR_BUTTON_HOVER, COLOR_BUTTON_BORDER,
     ACTION_LABELS, get_key_labels,
 )
 
@@ -21,6 +22,9 @@ class Renderer:
         self._grid_surface = pygame.Surface((GRID_PIXEL, GRID_PIXEL))
         self._hover_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
         self._hover_surface.fill((255, 255, 255, 60))
+        self._bottom_buttons = []
+        self._hovered_button = None
+        self._overlay_buttons = []
 
     def pixel_to_grid(self, px: int, py: int) -> tuple[int, int] | tuple[None, None]:
         gx = (px - GRID_OFFSET_X) // CELL_SIZE
@@ -28,6 +32,29 @@ class Renderer:
         if 0 <= gx < GRID_SIZE and 0 <= gy < GRID_SIZE:
             return gx, gy
         return None, None
+
+    def check_bottom_button_click(self, pos) -> str | None:
+        for rect, action_id in self._bottom_buttons:
+            if rect.collidepoint(pos):
+                return action_id
+        return None
+
+    def update_bottom_button_hover(self, pos):
+        self._hovered_button = None
+        for rect, action_id in self._bottom_buttons:
+            if rect.collidepoint(pos):
+                self._hovered_button = action_id
+                break
+        for rect, action_id in self._overlay_buttons:
+            if rect.collidepoint(pos):
+                self._hovered_button = action_id
+                break
+
+    def check_overlay_button_click(self, pos) -> str | None:
+        for rect, action_id in self._overlay_buttons:
+            if rect.collidepoint(pos):
+                return action_id
+        return None
 
     def draw_frame(self, frame, mouse_grid_pos, step_count, elapsed_ms,
                    levels_completed, max_levels, available_actions,
@@ -152,11 +179,50 @@ class Renderer:
         pygame.draw.rect(self.screen, COLOR_PANEL, bar_rect)
         pygame.draw.line(self.screen, COLOR_ACCENT, (0, bar_y), (WINDOW_WIDTH, bar_y))
 
-        hints = "[ESC] Menu  [R] Reset  [Z] Undo"
+        self._bottom_buttons = []
+        button_y = bar_y + 5
+        button_h = 20
+        button_padding = 8
+
+        buttons_data = [
+            ("Menu", "menu", True),
+            ("Reset", "reset", True),
+            ("Undo", "undo", GameAction.ACTION7 in available_actions),
+        ]
+
+        x = 10
+        for label, action_id, enabled in buttons_data:
+            text_width = self.font_small.size(label)[0]
+            button_w = text_width + button_padding * 2
+            button_rect = pygame.Rect(x, button_y, button_w, button_h)
+
+            is_hovered = (self._hovered_button == action_id and enabled)
+            color = COLOR_BUTTON_HOVER if is_hovered else COLOR_BUTTON_BG
+            if not enabled:
+                color = (50, 50, 55)
+
+            pygame.draw.rect(self.screen, color, button_rect, border_radius=4)
+            border_color = COLOR_HIGHLIGHT if is_hovered else COLOR_BUTTON_BORDER
+            if not enabled:
+                border_color = (70, 70, 75)
+            pygame.draw.rect(self.screen, border_color, button_rect, 1, border_radius=4)
+
+            text_color = COLOR_TEXT if enabled else COLOR_TEXT_DIM
+            text = self.font_small.render(label, True, text_color)
+            text_x = x + button_padding
+            text_y = button_y + (button_h - text.get_height()) // 2
+            self.screen.blit(text, (text_x, text_y))
+
+            if enabled:
+                self._bottom_buttons.append((button_rect, action_id))
+
+            x += button_w + 12
+
+        hints_x = x + 10
         if GameAction.ACTION6 in available_actions:
-            hints += "  [Mouse] Click grid"
-        text = self.font_small.render(hints, True, COLOR_TEXT_DIM)
-        self.screen.blit(text, (10, bar_y + 8))
+            hints = "[Mouse] Click grid"
+            text = self.font_small.render(hints, True, COLOR_TEXT_DIM)
+            self.screen.blit(text, (hints_x, bar_y + 8))
 
     def _draw_label_value(self, x, y, label, value):
         lbl = self.font_small.render(label, True, COLOR_TEXT_DIM)
@@ -198,7 +264,7 @@ class Renderer:
         overlay.fill((0, 0, 0, 140))
         self.screen.blit(overlay, (0, 0))
 
-        box_w, box_h = 320, 140
+        box_w, box_h = 320, 160
         box_x = (WINDOW_WIDTH - box_w) // 2
         box_y = (WINDOW_HEIGHT - box_h) // 2
         pygame.draw.rect(self.screen, (50, 30, 30), (box_x, box_y, box_w, box_h), border_radius=8)
@@ -210,8 +276,31 @@ class Renderer:
         info = self.font_medium.render(f"Steps: {step_count}", True, COLOR_TEXT)
         self.screen.blit(info, (box_x + 20, box_y + 55))
 
-        hint = self.font_small.render("[R] Reset  [ESC] Menu", True, COLOR_TEXT_DIM)
-        self.screen.blit(hint, (box_x + 20, box_y + box_h - 30))
+        self._overlay_buttons = []
+        button_y = box_y + box_h - 45
+        button_h = 24
+        button_padding = 12
+
+        buttons_data = [("Reset", "reset"), ("Menu", "menu")]
+        x = box_x + 20
+        for label, action_id in buttons_data:
+            text_width = self.font_small.size(label)[0]
+            button_w = text_width + button_padding * 2
+            button_rect = pygame.Rect(x, button_y, button_w, button_h)
+
+            is_hovered = self._hovered_button == action_id
+            color = COLOR_BUTTON_HOVER if is_hovered else COLOR_BUTTON_BG
+            pygame.draw.rect(self.screen, color, button_rect, border_radius=4)
+            border_color = COLOR_HIGHLIGHT if is_hovered else COLOR_BUTTON_BORDER
+            pygame.draw.rect(self.screen, border_color, button_rect, 1, border_radius=4)
+
+            text = self.font_small.render(label, True, COLOR_TEXT)
+            text_x = x + (button_w - text.get_width()) // 2
+            text_y = button_y + (button_h - text.get_height()) // 2
+            self.screen.blit(text, (text_x, text_y))
+
+            self._overlay_buttons.append((button_rect, action_id))
+            x += button_w + 15
 
     def draw_overlay_all_complete(self, game_id, total_steps, total_time_ms):
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)

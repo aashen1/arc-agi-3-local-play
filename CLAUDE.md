@@ -19,32 +19,34 @@
 
 ## 文档索引
 
+官方文档存储在 `plgd/arcprize-docs/` 目录下。
+
 所有调研成果按主题拆分为独立文档，存储在 `docs/` 目录下：
 
-| 文档 | 内容 |
-|------|------|
-| [docs/human-player-guide.md](docs/human-player-guide.md) | 人类玩家控制台使用说明 — 启动、操作、数据文件 |
-| [docs/human-player-tech-report.md](docs/human-player-tech-report.md) | 人类玩家控制台技术报告 — 架构、模块、设计决策 |
-| [docs/guide.md](docs/guide.md) | ARC-AGI-3 快速上手指南 — 环境配置、第一个游戏、基本用法 |
-| [docs/game-mechanics.md](docs/game-mechanics.md) | 游戏机制详解 — 网格结构、游戏状态、关卡设计、可用游戏 |
-| [docs/scoring-system.md](docs/scoring-system.md) | 评分系统详解 — RHAE 评分公式、人类基线、加权聚合 |
-| [docs/actions-reference.md](docs/actions-reference.md) | 动作参考手册 — 7 种标准动作、键位映射、复杂动作坐标 |
-| [docs/agent-development.md](docs/agent-development.md) | 智能体开发指南 — 自定义智能体、LLM 智能体、Swarm 编排 |
-| [docs/rest-api.md](docs/rest-api.md) | REST API 参考 — 端点、认证、会话管理、速率限制 |
-| [docs/human-vs-ai.md](docs/human-vs-ai.md) | 人机对比框架 — 对比方法论、数据收集、分析维度 |
+| 文档                                                                   | 内容                                 |
+| -------------------------------------------------------------------- | ---------------------------------- |
+| [docs/human-player-guide.md](docs/human-player-guide.md)             | 人类玩家控制台使用说明 — 启动、操作、数据文件           |
+| [docs/human-player-tech-report.md](docs/human-player-tech-report.md) | 人类玩家控制台技术报告 — 架构、模块、设计决策           |
+| [docs/guide.md](docs/guide.md)                                       | ARC-AGI-3 快速上手指南 — 环境配置、第一个游戏、基本用法 |
+| [docs/game-mechanics.md](docs/game-mechanics.md)                     | 游戏机制详解 — 网格结构、游戏状态、关卡设计、可用游戏       |
+| [docs/scoring-system.md](docs/scoring-system.md)                     | 评分系统详解 — RHAE 评分公式、人类基线、加权聚合       |
+| [docs/actions-reference.md](docs/actions-reference.md)               | 动作参考手册 — 7 种标准动作、键位映射、复杂动作坐标       |
+| [docs/agent-development.md](docs/agent-development.md)               | 智能体开发指南 — 自定义智能体、LLM 智能体、Swarm 编排  |
+| [docs/rest-api.md](docs/rest-api.md)                                 | REST API 参考 — 端点、认证、会话管理、速率限制      |
+| [docs/human-vs-ai.md](docs/human-vs-ai.md)                           | 人机对比框架 — 对比方法论、数据收集、分析维度           |
 
 ## 关键概念速查
 
-| 术语 | 说明 |
-|------|------|
-| ARC-AGI-3 | 第三代抽象与推理基准，交互式游戏环境 |
-| Arcade | Toolkit 主入口类 `arc_agi.Arcade()` |
-| Environment | 一个可交互的游戏实例，通过 `arc.make("game_id")` 创建 |
-| GameAction | 标准化动作枚举：RESET, ACTION1-7 |
-| Scorecard | 记分卡，聚合智能体在游戏中的表现 |
-| RHAE | 相对人类动作效率，核心评分方法 |
-| Swarm | 跨多游戏并行编排智能体的系统 |
-| OperationMode | OFFLINE / ONLINE / COMPETITION 三种运行模式 |
+| 术语            | 说明                                     |
+| ------------- | -------------------------------------- |
+| ARC-AGI-3     | 第三代抽象与推理基准，交互式游戏环境                     |
+| Arcade        | Toolkit 主入口类 `arc_agi.Arcade()`        |
+| Environment   | 一个可交互的游戏实例，通过 `arc.make("game_id")` 创建 |
+| GameAction    | 标准化动作枚举：RESET, ACTION1-7               |
+| Scorecard     | 记分卡，聚合智能体在游戏中的表现                       |
+| RHAE          | 相对人类动作效率，核心评分方法                        |
+| Swarm         | 跨多游戏并行编排智能体的系统                         |
+| OperationMode | OFFLINE / ONLINE / COMPETITION 三种运行模式  |
 
 ## 项目文件结构
 
@@ -96,3 +98,4 @@ pixi run human-play        # 同上（别名）
 - 所有 Python 程序使用 `pixi run python` 执行
 - 不要修改 `plgd/arcprize-docs/` 下的官方文档
 - 人类玩家控制台使用 Pygame 渲染，支持键盘和鼠标操作
+

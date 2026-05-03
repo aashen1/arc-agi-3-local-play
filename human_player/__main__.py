@@ -53,6 +53,10 @@ def main():
     session_id = None
     player_input_text = ""
     player_input_active = False
+    win_elapsed_ms = 0
+    win_step_count = 0
+    total_elapsed_ms = 0
+    total_steps = 0
 
     window_w = WINDOW_WIDTH
     window_h = WINDOW_HEIGHT
@@ -252,7 +256,15 @@ def main():
                                 game_over_recorded = False
 
                             if obs and obs.state == GameState.WIN:
-                                overlay_state = "win"
+                                win_elapsed_ms = game_manager.get_elapsed_ms()
+                                win_step_count = game_manager.step_count
+                                if (game_manager.max_levels > 0
+                                        and game_manager.levels_completed >= game_manager.max_levels):
+                                    total_elapsed_ms = game_manager.get_total_elapsed_ms()
+                                    total_steps = game_manager.total_steps
+                                    overlay_state = "all_complete"
+                                else:
+                                    overlay_state = "win"
                             elif obs and obs.state == GameState.GAME_OVER:
                                 if not game_over_recorded:
                                     stats_manager.record_attempt(
@@ -265,19 +277,35 @@ def main():
 
                     if overlay_state and event.type == pygame.KEYDOWN:
                         if overlay_state == "win":
-                            if (game_manager.max_levels > 0
-                                    and game_manager.levels_completed >= game_manager.max_levels):
-                                overlay_state = "all_complete"
-                            else:
-                                overlay_state = None
-                                game_manager.step_count = 0
-                                game_manager.level_start_time = time.time()
-                                game_over_recorded = False
+                            overlay_state = None
+                            game_manager.step_count = 0
+                            game_manager.level_start_time = time.time()
+                            game_over_recorded = False
                         elif overlay_state == "game_over":
                             if event.key == pygame.K_r:
                                 overlay_state = None
                                 game_manager.reset_level()
                                 game_over_recorded = False
+                        elif overlay_state == "all_complete":
+                            recording_manager.end_session()
+                            if official_recording.is_recording:
+                                official_recording.end_session("WIN")
+                            game_manager.close_game()
+                            state = "MAIN_MENU"
+                            games = game_manager.list_games()
+                            overlay_state = None
+                            continue
+
+                    if overlay_state and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        if overlay_state == "win":
+                            overlay_state = None
+                            game_manager.step_count = 0
+                            game_manager.level_start_time = time.time()
+                            game_over_recorded = False
+                        elif overlay_state == "game_over":
+                            overlay_state = None
+                            game_manager.reset_level()
+                            game_over_recorded = False
                         elif overlay_state == "all_complete":
                             recording_manager.end_session()
                             if official_recording.is_recording:
@@ -325,15 +353,14 @@ def main():
                     best_steps = level_manager.get_best_steps(game_manager.game_id, current_level)
                     best_time = level_manager.get_best_time_ms(game_manager.game_id, current_level)
                     renderer.draw_overlay_win(
-                        current_level, game_manager.step_count, game_manager.get_elapsed_ms(),
+                        current_level, win_step_count, win_elapsed_ms,
                         best_steps, best_time,
                     )
                 elif overlay_state == "game_over":
                     renderer.draw_overlay_game_over(game_manager.step_count)
                 elif overlay_state == "all_complete":
                     renderer.draw_overlay_all_complete(
-                        game_manager.game_id, game_manager.total_steps,
-                        game_manager.get_total_elapsed_ms(),
+                        game_manager.game_id, total_steps, total_elapsed_ms,
                     )
 
             scaled_w = int(DESIGN_WIDTH * scale_factor)

@@ -94,6 +94,22 @@ class LevelManager:
         level = game.get("levels", {}).get(str(level_index), {})
         return level.get("best_time_ms")
 
+    def is_fully_completed(self, game_id: str) -> bool:
+        total = self.get_total_levels(game_id)
+        if total <= 0:
+            return False
+        return self.get_completed_count(game_id) >= total
+
+    def get_level_info(self, game_id: str, level_index: int) -> dict:
+        game = self.get_game_progress(game_id)
+        level = game.get("levels", {}).get(str(level_index), {})
+        return {
+            "completed": level.get("completed", False),
+            "best_steps": level.get("best_steps"),
+            "best_time_ms": level.get("best_time_ms"),
+            "attempts": level.get("attempts", 0),
+        }
+
     def get_last_played_game_id(self) -> str | None:
         latest_time = None
         latest_game = None

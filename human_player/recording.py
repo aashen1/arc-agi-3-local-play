@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from arcengine import GameAction, FrameDataRaw
 
 from human_player.config import RECORDINGS_DIR
+from human_player.mode import get_player_mode, get_agent_type, PlayerMode
 
 
 class RecordingManager:
@@ -33,6 +34,7 @@ class RecordingManager:
             return
 
         self._step_count += 1
+        player_mode = get_player_mode()
         record = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "step": step_count,
@@ -42,9 +44,12 @@ class RecordingManager:
             "levels_completed": obs.levels_completed if obs else 0,
             "score": getattr(obs, 'score', 0) or 0,
             "elapsed_ms": elapsed_ms,
-            "player_type": "human",
+            "player_type": player_mode.value,
             "session_id": self.current_session_id,
         }
+        if player_mode == PlayerMode.AGENT:
+            agent_type = get_agent_type()
+            record["agent_type"] = agent_type.value if agent_type else "unknown"
 
         self.current_file.write(json.dumps(record, ensure_ascii=False) + "\n")
         self.current_file.flush()

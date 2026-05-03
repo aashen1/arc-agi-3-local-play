@@ -1,8 +1,9 @@
 import arc_agi
 from arcengine import GameAction
 from human_player.config import get_render_mode
+from human_player.mode import get_operation_mode
 
-arc = arc_agi.Arcade()
+arc = arc_agi.Arcade(operation_mode=get_operation_mode())
 env = arc.make("ls20", render_mode=get_render_mode())
 # env = arc.make("ls20")
 

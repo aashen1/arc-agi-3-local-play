@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from arcengine import GameAction
 
+from human_player.mode import get_player_mode, get_agent_type, PlayerMode
 from human_player.player_manager import PlayerManager
 
 ACTION_ID_MAP = {
@@ -61,7 +62,8 @@ class OfficialRecordingManager:
         return self._guid
 
     def record_step(self, action: GameAction, action_data: dict | None,
-                    obs, available_actions: list) -> None:
+                    obs, available_actions: list,
+                    reasoning: dict | str | None = None) -> None:
         if self._file is None:
             return
 
@@ -77,13 +79,15 @@ class OfficialRecordingManager:
         action_input = {
             "id": action_id,
             "data": action_input_data,
-            "reasoning": None,
+            "reasoning": reasoning if get_player_mode() == PlayerMode.AGENT else None,
         }
 
         frame = self._extract_frame(obs)
         state = obs.state.name if obs and hasattr(obs, 'state') else "UNKNOWN"
-        levels_completed = getattr(obs, 'levels_completed', self._prev_levels_completed) or 0
-        win_levels = getattr(obs, 'win_levels', self._win_levels) or self._win_levels
+        levels_completed = getattr(
+            obs, 'levels_completed', self._prev_levels_completed) or 0
+        win_levels = getattr(
+            obs, 'win_levels', self._win_levels) or self._win_levels
 
         if levels_completed > self._prev_levels_completed:
             for lvl in range(self._prev_levels_completed, levels_completed):
@@ -241,7 +245,11 @@ class OfficialRecordingManager:
             "levels_completed": self._prev_levels_completed,
             "final_state": final_state,
             "phase": "learning",
+            "player_mode": get_player_mode().value,
         }
+        if get_player_mode() == PlayerMode.AGENT:
+            agent_type = get_agent_type()
+            session_entry["agent_type"] = agent_type.value if agent_type else "unknown"
 
         sessions = index.get("sessions", [])
 

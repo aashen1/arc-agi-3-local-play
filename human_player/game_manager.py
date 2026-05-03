@@ -4,12 +4,29 @@ import numpy as np
 from arcengine import GameAction, GameState, FrameDataRaw
 import arc_agi
 
+from human_player.mode import (
+    get_operation_mode, get_player_mode, get_player_tag,
+    is_agent_mode, is_human_mode, PlayerMode,
+)
+
 ANIMATION_FPS = 15
 
 
 class GameManager:
     def __init__(self):
-        self.arc = arc_agi.Arcade()
+        op_mode = get_operation_mode()
+        player_mode = get_player_mode()
+
+        if is_agent_mode():
+            from dotenv import load_dotenv
+            load_dotenv()
+            print(f"[GameManager] Agent mode — loading .env, operation_mode={op_mode.name}")
+        else:
+            print(f"[GameManager] Human mode — forced OFFLINE, skipping .env")
+
+        self.arc = arc_agi.Arcade(operation_mode=op_mode)
+        self.player_mode = player_mode
+        self._scorecard_id = None
         self.env = None
         self.game_id = None
         self.step_count = 0
@@ -40,7 +57,14 @@ class GameManager:
         self._anim_frames = []
         self._anim_index = 0
 
-        self.env = self.arc.make(game_id)
+        if is_agent_mode():
+            tag = get_player_tag()
+            self._scorecard_id = self.arc.create_scorecard(tags=[tag])
+            self.env = self.arc.make(game_id, scorecard_id=self._scorecard_id)
+        else:
+            self._scorecard_id = None
+            self.env = self.arc.make(game_id)
+
         if self.env is None:
             return False
 
@@ -50,17 +74,21 @@ class GameManager:
             self._start_animation(obs)
         return True
 
-    def execute_action(self, action: GameAction, data: dict = None) -> FrameDataRaw | None:
+    def execute_action(self, action: GameAction, data: dict = None,
+                       reasoning: dict | str | None = None) -> FrameDataRaw | None:
         if self.env is None:
             return None
 
         if action == GameAction.RESET:
             return self.reset_level()
 
+        kwargs = {}
         if data:
-            obs = self.env.step(action, data=data)
-        else:
-            obs = self.env.step(action)
+            kwargs["data"] = data
+        if is_agent_mode() and reasoning is not None:
+            kwargs["reasoning"] = reasoning
+
+        obs = self.env.step(action, **kwargs)
 
         if obs:
             self.step_count += 1
@@ -85,6 +113,12 @@ class GameManager:
         return obs
 
     def close_game(self):
+        if is_agent_mode() and self._scorecard_id:
+            try:
+                self.arc.close_scorecard(self._scorecard_id)
+            except Exception:
+                pass
+            self._scorecard_id = None
         self.env = None
         self.game_id = None
 

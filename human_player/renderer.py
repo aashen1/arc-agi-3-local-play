@@ -185,9 +185,9 @@ class Renderer:
         button_padding = 8
 
         buttons_data = [
-            ("Menu", "menu", True),
-            ("Reset", "reset", True),
-            ("Undo", "undo", GameAction.ACTION7 in available_actions),
+            ("[Esc] Menu", "menu", True),
+            ("[R] Reset", "reset", True),
+            ("[Z] Undo", "undo", GameAction.ACTION7 in available_actions),
         ]
 
         x = 10
@@ -281,7 +281,7 @@ class Renderer:
         button_h = 24
         button_padding = 12
 
-        buttons_data = [("Reset", "reset"), ("Menu", "menu")]
+        buttons_data = [("[R] Reset", "reset"), ("[Esc] Menu", "menu")]
         x = box_x + 20
         for label, action_id in buttons_data:
             text_width = self.font_small.size(label)[0]

@@ -48,11 +48,15 @@ def main():
     state = "MAIN_MENU"
     keymap_scheme = get_keymap_scheme()
     games = game_manager.list_games()
-    show_download = game_manager._needs_sync
+    auto_sync_on_start = game_manager._needs_sync
+    show_sync_button = game_manager._show_sync_button
 
     sync_progress = None
     sync_result = None
     sync_thread = None
+
+    if auto_sync_on_start:
+        state = "SYNCING"
 
     current_level = 0
     game_over_recorded = False
@@ -186,6 +190,11 @@ def main():
                     elif result in ("wasd", "arrows"):
                         keymap_scheme = result
                         set_keymap_scheme(result)
+                    elif result in ("conservative", "auto"):
+                        from human_player.config import set_sync_mode
+                        set_sync_mode(result)
+                        game_manager = GameManager()
+                        show_sync_button = game_manager._show_sync_button
 
                 elif state == "STATS":
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -355,7 +364,7 @@ def main():
                 menu_renderer.draw_main_menu(
                     games, level_manager, keymap_scheme,
                     player_manager.get_current_player(),
-                    show_download=show_download,
+                    show_sync_button=show_sync_button,
                 )
 
             elif state == "SYNCING":
@@ -395,14 +404,15 @@ def main():
                             _window_to_design(*pygame.mouse.get_pos()) if event.type == pygame.MOUSEBUTTONDOWN else (0, 0)
                         )
                         if btn == "ok" or event.type == pygame.KEYDOWN:
-                            show_download = False
                             sync_thread = None
                             game_manager = GameManager()
                             games = game_manager.list_games()
+                            show_sync_button = game_manager._show_sync_button
                             state = "MAIN_MENU"
 
             elif state == "SETTINGS":
-                menu_renderer.draw_settings(keymap_scheme)
+                from human_player.config import get_sync_mode
+                menu_renderer.draw_settings(keymap_scheme, sync_mode=get_sync_mode())
 
             elif state == "STATS":
                 menu_renderer.draw_stats(games, level_manager, stats_manager)

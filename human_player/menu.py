@@ -63,7 +63,7 @@ class MenuRenderer:
         set_view_mode(self.view_mode)
         self.scroll_offset = 0
 
-    def draw_main_menu(self, games, level_manager, keymap_scheme, current_player="default", show_download=False):
+    def draw_main_menu(self, games, level_manager, keymap_scheme, current_player="default", show_sync_button=False):
         self.screen.fill(COLOR_BG)
         self.game_rects = []
         self.button_rects = {}
@@ -108,11 +108,11 @@ class MenuRenderer:
         if max_scroll > 0:
             self._draw_scrollbar(max_scroll)
 
-        self._draw_bottom_buttons(show_download=show_download)
+        self._draw_bottom_buttons(show_sync_button=show_sync_button)
 
-        if show_download and len(games) == 0:
+        if show_sync_button and len(games) == 0:
             hint = self.font_small.render(
-                "No local games found — press [D] to download", True, COLOR_GAMEOVER,
+                "No local games found — press [D] to sync", True, COLOR_GAMEOVER,
             )
         else:
             hint = self.font_small.render(
@@ -275,7 +275,7 @@ class MenuRenderer:
         thumb_color = COLOR_HIGHLIGHT if self.scroll_dragging else COLOR_ACCENT
         pygame.draw.rect(self.screen, thumb_color, self.scrollbar_thumb_rect, border_radius=4)
 
-    def _draw_bottom_buttons(self, show_download=False):
+    def _draw_bottom_buttons(self, show_sync_button=False):
         btn_y = WINDOW_HEIGHT - 50
         player_rect = pygame.Rect(40, btn_y, 140, 36)
         settings_rect = pygame.Rect(200, btn_y, 120, 36)
@@ -287,7 +287,7 @@ class MenuRenderer:
             "stats": stats_rect,
             "quit": quit_rect,
         }
-        if show_download:
+        if show_sync_button:
             download_rect = pygame.Rect(WINDOW_WIDTH - 310, btn_y, 140, 36)
             self.button_rects["download"] = download_rect
 
@@ -302,7 +302,7 @@ class MenuRenderer:
                 "settings": "[S] Settings",
                 "stats": "[V] Stats",
                 "quit": "[Q] Quit",
-                "download": "[D] Download",
+                "download": "[D] Sync",
             }
             lbl = self.font_small.render(labels[name], True, COLOR_TEXT)
             self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
@@ -496,7 +496,7 @@ class MenuRenderer:
         self.screen.blit(lbl, (back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
                                back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
 
-    def draw_settings(self, keymap_scheme):
+    def draw_settings(self, keymap_scheme, sync_mode="conservative"):
         self.screen.fill(COLOR_BG)
         self.button_rects = {}
 
@@ -523,6 +523,33 @@ class MenuRenderer:
             labels = {"wasd": "WASD + Space", "arrows": "Arrows + F"}
             color = COLOR_BG if is_selected else COLOR_TEXT
             lbl = self.font_medium.render(labels[name], True, color)
+            self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
+                                   rect.y + rect.h // 2 - lbl.get_height() // 2))
+
+        y += 140
+        pygame.draw.line(self.screen, COLOR_TEXT_DIM, (60, y), (WINDOW_WIDTH - 60, y))
+        y += 20
+
+        sync_label = self.font_medium.render("Game Sync Mode:", True, COLOR_TEXT)
+        self.screen.blit(sync_label, (60, y))
+        sync_display = "Manual sync only" if sync_mode == "conservative" else "Auto sync on startup"
+        sync_value = self.font_large.render(sync_display, True, COLOR_HIGHLIGHT)
+        self.screen.blit(sync_value, (60, y + 28))
+
+        conservative_rect = pygame.Rect(60, y + 70, 310, 40)
+        auto_rect = pygame.Rect(390, y + 70, 310, 40)
+        self.button_rects["conservative"] = conservative_rect
+        self.button_rects["auto"] = auto_rect
+
+        for name, rect in [("conservative", conservative_rect), ("auto", auto_rect)]:
+            is_selected = (name == sync_mode)
+            bg = COLOR_ACCENT if is_selected else COLOR_PANEL
+            border = COLOR_HIGHLIGHT if is_selected else COLOR_ACCENT
+            pygame.draw.rect(self.screen, bg, rect, border_radius=4)
+            pygame.draw.rect(self.screen, border, rect, 2, border_radius=4)
+            sync_labels = {"conservative": "Manual [D] Sync", "auto": "Auto on Startup"}
+            color = COLOR_BG if is_selected else COLOR_TEXT
+            lbl = self.font_medium.render(sync_labels[name], True, color)
             self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
                                    rect.y + rect.h // 2 - lbl.get_height() // 2))
 

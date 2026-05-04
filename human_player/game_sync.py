@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 import arc_agi
 from arc_agi import OperationMode
 
+from human_player.config import get_sync_mode, SYNC_MODE_CONSERVATIVE, SYNC_MODE_AUTO
+
 
 ENVIRONMENTS_DIR = os.getenv("ENVIRONMENTS_DIR", "environment_files")
 
@@ -44,7 +46,17 @@ def get_local_game_count() -> int:
 
 
 def needs_sync() -> bool:
+    mode = get_sync_mode()
+    if mode == SYNC_MODE_AUTO:
+        return True
     return get_local_game_count() == 0
+
+
+def should_show_sync_button() -> bool:
+    mode = get_sync_mode()
+    if mode == SYNC_MODE_CONSERVATIVE:
+        return True
+    return False
 
 
 def sync_games(progress_callback=None) -> SyncResult:

@@ -157,3 +157,20 @@ def set_view_mode(mode: str):
     cfg = _load_user_config()
     cfg["view_mode"] = mode
     _save_user_config(cfg)
+
+
+SYNC_MODE_CONSERVATIVE = "conservative"
+SYNC_MODE_AUTO = "auto"
+
+
+def get_sync_mode() -> str:
+    mode = _load_user_config().get("sync_mode", SYNC_MODE_CONSERVATIVE)
+    if mode not in (SYNC_MODE_CONSERVATIVE, SYNC_MODE_AUTO):
+        mode = SYNC_MODE_CONSERVATIVE
+    return mode
+
+
+def set_sync_mode(mode: str):
+    cfg = _load_user_config()
+    cfg["sync_mode"] = mode
+    _save_user_config(cfg)

@@ -9,7 +9,7 @@ from human_player.mode import (
     get_operation_mode, get_player_mode, get_player_tag,
     is_agent_mode, is_human_mode, PlayerMode,
 )
-from human_player.game_sync import needs_sync, get_local_game_count
+from human_player.game_sync import needs_sync, get_local_game_count, should_show_sync_button
 
 ANIMATION_FPS = 15
 
@@ -32,6 +32,7 @@ class GameManager:
         self.arc = arc_agi.Arcade(operation_mode=op_mode)
         self.player_mode = player_mode
         self._needs_sync = is_human_mode() and needs_sync()
+        self._show_sync_button = is_human_mode() and should_show_sync_button()
         self._scorecard_id = None
         self.env = None
         self.game_id = None

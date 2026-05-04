@@ -63,7 +63,7 @@ class MenuRenderer:
         set_view_mode(self.view_mode)
         self.scroll_offset = 0
 
-    def draw_main_menu(self, games, level_manager, keymap_scheme, current_player="default"):
+    def draw_main_menu(self, games, level_manager, keymap_scheme, current_player="default", show_download=False):
         self.screen.fill(COLOR_BG)
         self.game_rects = []
         self.button_rects = {}
@@ -108,11 +108,16 @@ class MenuRenderer:
         if max_scroll > 0:
             self._draw_scrollbar(max_scroll)
 
-        self._draw_bottom_buttons()
+        self._draw_bottom_buttons(show_download=show_download)
 
-        hint = self.font_small.render(
-            "Click a game or press number key to start", True, COLOR_TEXT_DIM,
-        )
+        if show_download and len(games) == 0:
+            hint = self.font_small.render(
+                "No local games found — press [D] to download", True, COLOR_GAMEOVER,
+            )
+        else:
+            hint = self.font_small.render(
+                "Click a game or press number key to start", True, COLOR_TEXT_DIM,
+            )
         self.screen.blit(hint, (WINDOW_WIDTH // 2 - hint.get_width() // 2, WINDOW_HEIGHT - 85))
 
     def _draw_grid_menu(self, games, level_manager, last_played_id):
@@ -270,7 +275,7 @@ class MenuRenderer:
         thumb_color = COLOR_HIGHLIGHT if self.scroll_dragging else COLOR_ACCENT
         pygame.draw.rect(self.screen, thumb_color, self.scrollbar_thumb_rect, border_radius=4)
 
-    def _draw_bottom_buttons(self):
+    def _draw_bottom_buttons(self, show_download=False):
         btn_y = WINDOW_HEIGHT - 50
         player_rect = pygame.Rect(40, btn_y, 140, 36)
         settings_rect = pygame.Rect(200, btn_y, 120, 36)
@@ -282,6 +287,9 @@ class MenuRenderer:
             "stats": stats_rect,
             "quit": quit_rect,
         }
+        if show_download:
+            download_rect = pygame.Rect(WINDOW_WIDTH - 310, btn_y, 140, 36)
+            self.button_rects["download"] = download_rect
 
         for name, rect in self.button_rects.items():
             is_hovered = (self.button_hover == name)
@@ -294,6 +302,7 @@ class MenuRenderer:
                 "settings": "[S] Settings",
                 "stats": "[V] Stats",
                 "quit": "[Q] Quit",
+                "download": "[D] Download",
             }
             lbl = self.font_small.render(labels[name], True, COLOR_TEXT)
             self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
@@ -769,6 +778,78 @@ class MenuRenderer:
             (x + s * 0.9, y + s * 0.15),
         ]
         pygame.draw.lines(self.screen, COLOR_WIN, False, pts, 2)
+
+    def draw_sync_progress(self, current, total, game_id, status):
+        self.screen.fill(COLOR_BG)
+
+        title = self.font_large.render("Downloading Games...", True, COLOR_ACCENT)
+        self.screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 60))
+
+        progress_text = self.font_medium.render(
+            f"{current}/{total}  {game_id}  {status}", True, COLOR_TEXT,
+        )
+        self.screen.blit(progress_text, (WINDOW_WIDTH // 2 - progress_text.get_width() // 2, 120))
+
+        bar_x = 100
+        bar_y = 170
+        bar_w = WINDOW_WIDTH - 200
+        bar_h = 20
+        pygame.draw.rect(self.screen, (60, 60, 60), (bar_x, bar_y, bar_w, bar_h), border_radius=6)
+        if total > 0:
+            fill_w = max(3, int(bar_w * current / total))
+            pygame.draw.rect(self.screen, COLOR_WIN, (bar_x, bar_y, fill_w, bar_h), border_radius=6)
+
+        pct = self.font_medium.render(
+            f"{int(current / total * 100)}%" if total > 0 else "0%", True, COLOR_TEXT,
+        )
+        self.screen.blit(pct, (WINDOW_WIDTH // 2 - pct.get_width() // 2, 200))
+
+        hint = self.font_small.render("Please wait, this only needs to be done once.", True, COLOR_TEXT_DIM)
+        self.screen.blit(hint, (WINDOW_WIDTH // 2 - hint.get_width() // 2, 260))
+
+    def draw_sync_complete(self, result):
+        self.screen.fill(COLOR_BG)
+        self.button_rects = {}
+
+        title = self.font_large.render("Download Complete!", True, COLOR_WIN)
+        self.screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 60))
+
+        y = 120
+        info_lines = [
+            f"Total games: {result.total}",
+            f"Downloaded: {result.downloaded}",
+            f"Already cached: {result.skipped}",
+        ]
+        if result.failed:
+            info_lines.append(f"Failed: {len(result.failed)}")
+        for line in info_lines:
+            text = self.font_medium.render(line, True, COLOR_TEXT)
+            self.screen.blit(text, (WINDOW_WIDTH // 2 - text.get_width() // 2, y))
+            y += 28
+
+        y += 20
+        safety_text = self.font_medium.render(
+            "Games are now cached locally.", True, COLOR_HIGHLIGHT,
+        )
+        self.screen.blit(safety_text, (WINDOW_WIDTH // 2 - safety_text.get_width() // 2, y))
+        y += 28
+
+        hint1 = self.font_small.render(
+            "You can safely delete ARC_API_KEY from .env if you", True, COLOR_TEXT_DIM,
+        )
+        self.screen.blit(hint1, (WINDOW_WIDTH // 2 - hint1.get_width() // 2, y))
+        y += 20
+        hint2 = self.font_small.render(
+            "only play as human — this prevents any data upload.", True, COLOR_TEXT_DIM,
+        )
+        self.screen.blit(hint2, (WINDOW_WIDTH // 2 - hint2.get_width() // 2, y))
+
+        ok_rect = pygame.Rect(WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT - 60, 120, 36)
+        self.button_rects["ok"] = ok_rect
+        pygame.draw.rect(self.screen, COLOR_ACCENT, ok_rect, border_radius=4)
+        lbl = self.font_small.render("OK", True, COLOR_BG)
+        self.screen.blit(lbl, (ok_rect.x + ok_rect.w // 2 - lbl.get_width() // 2,
+                               ok_rect.y + ok_rect.h // 2 - lbl.get_height() // 2))
 
     def handle_button_click(self, pos) -> str | None:
         for name, rect in self.button_rects.items():

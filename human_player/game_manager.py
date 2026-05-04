@@ -3,11 +3,13 @@ import time
 import numpy as np
 from arcengine import GameAction, GameState, FrameDataRaw
 import arc_agi
+from arc_agi import OperationMode
 
 from human_player.mode import (
     get_operation_mode, get_player_mode, get_player_tag,
     is_agent_mode, is_human_mode, PlayerMode,
 )
+from human_player.game_sync import needs_sync, get_local_game_count
 
 ANIMATION_FPS = 15
 
@@ -23,10 +25,13 @@ class GameManager:
             print(
                 f"[GameManager] Agent mode — loading .env, operation_mode={op_mode.name}")
         else:
-            print(f"[GameManager] Human mode — operation_mode={op_mode.name}")
+            if op_mode != OperationMode.OFFLINE:
+                print(f"[GameManager] WARNING: Human mode should use OFFLINE, got {op_mode.name}")
+            print(f"[GameManager] Human mode — operation_mode={op_mode.name}, local games: {get_local_game_count()}")
 
         self.arc = arc_agi.Arcade(operation_mode=op_mode)
         self.player_mode = player_mode
+        self._needs_sync = is_human_mode() and needs_sync()
         self._scorecard_id = None
         self.env = None
         self.game_id = None
@@ -65,6 +70,8 @@ class GameManager:
         else:
             self._scorecard_id = None
             self.env = self.arc.make(game_id)
+            if self.env and hasattr(self.env, 'scorecard_id') and self.env.scorecard_id:
+                print(f"[GameManager] WARNING: Human mode created scorecard {self.env.scorecard_id} — this should not happen in OFFLINE mode")
 
         if self.env is None:
             return False
@@ -120,6 +127,10 @@ class GameManager:
             except Exception:
                 pass
             self._scorecard_id = None
+        elif is_human_mode():
+            if self._scorecard_id is not None:
+                print(f"[GameManager] WARNING: Human mode had scorecard_id={self._scorecard_id} — clearing without closing")
+                self._scorecard_id = None
         self.env = None
         self.game_id = None
 

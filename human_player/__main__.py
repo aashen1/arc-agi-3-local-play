@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import threading
 
 import pygame
 from arcengine import GameAction, GameState
@@ -12,6 +13,7 @@ from human_player.config import (
     DATA_DIR, RECORDS_DIR, RECORDINGS_DIR, PLAYERS_DIR,
 )
 from human_player.game_manager import GameManager
+from human_player.game_sync import sync_games, needs_sync as check_needs_sync
 from human_player.level_manager import LevelManager
 from human_player.stats_manager import StatsManager
 from human_player.recording import RecordingManager
@@ -46,6 +48,11 @@ def main():
     state = "MAIN_MENU"
     keymap_scheme = get_keymap_scheme()
     games = game_manager.list_games()
+    show_download = game_manager._needs_sync
+
+    sync_progress = None
+    sync_result = None
+    sync_thread = None
 
     current_level = 0
     game_over_recorded = False
@@ -133,6 +140,10 @@ def main():
                         state = "PLAYER_SELECT"
                         player_input_text = ""
                         player_input_active = False
+                    elif result == "download":
+                        state = "SYNCING"
+                        sync_progress = [0, 0, "", "starting"]
+                        sync_result = None
                     elif isinstance(result, str) and result.startswith("game:"):
                         idx = int(result.split(":")[1])
                         if idx < len(games):
@@ -344,7 +355,51 @@ def main():
                 menu_renderer.draw_main_menu(
                     games, level_manager, keymap_scheme,
                     player_manager.get_current_player(),
+                    show_download=show_download,
                 )
+
+            elif state == "SYNCING":
+                if sync_thread is None:
+                    sync_progress = [0, 0, "", "starting"]
+
+                    def _on_sync_progress(current, total, gid, status):
+                        nonlocal sync_progress
+                        sync_progress = [current, total, gid, status]
+
+                    def _run_sync():
+                        nonlocal sync_result
+                        sync_result = sync_games(progress_callback=_on_sync_progress)
+
+                    sync_thread = threading.Thread(target=_run_sync, daemon=True)
+                    sync_thread.start()
+
+                if sync_thread and not sync_thread.is_alive() and sync_result is not None:
+                    state = "SYNC_COMPLETE"
+
+                if sync_progress:
+                    menu_renderer.draw_sync_progress(
+                        sync_progress[0], sync_progress[1],
+                        sync_progress[2], sync_progress[3],
+                    )
+
+            elif state == "SYNC_COMPLETE":
+                menu_renderer.draw_sync_complete(sync_result)
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        sys.exit()
+                    if event.type == pygame.KEYDOWN or (
+                        event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    ):
+                        btn = menu_renderer.handle_button_click(
+                            _window_to_design(*pygame.mouse.get_pos()) if event.type == pygame.MOUSEBUTTONDOWN else (0, 0)
+                        )
+                        if btn == "ok" or event.type == pygame.KEYDOWN:
+                            show_download = False
+                            sync_thread = None
+                            game_manager = GameManager()
+                            games = game_manager.list_games()
+                            state = "MAIN_MENU"
 
             elif state == "SETTINGS":
                 menu_renderer.draw_settings(keymap_scheme)
@@ -411,6 +466,8 @@ def _handle_menu_event(event, menu_renderer, games):
             return "stats"
         if event.key == pygame.K_p:
             return "player"
+        if event.key == pygame.K_d:
+            return "download"
         if pygame.K_1 <= event.key <= pygame.K_9:
             idx = event.key - pygame.K_1
             if idx < len(games):

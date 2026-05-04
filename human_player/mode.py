@@ -57,7 +57,7 @@ def set_agent_type(agent_type: AgentType | None) -> None:
 def get_operation_mode() -> OperationMode:
     mode = get_player_mode()
     if mode == PlayerMode.HUMAN:
-        return OperationMode.NORMAL
+        return OperationMode.OFFLINE
     return OperationMode.ONLINE
 
 

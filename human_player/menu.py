@@ -122,7 +122,7 @@ class MenuRenderer:
             )
         else:
             hint = self.font_small.render(
-                "Click a game or press number key to start", True, COLOR_TEXT_DIM,
+                "Click a game or use Arrow keys + Enter to start", True, COLOR_TEXT_DIM,
             )
         self.screen.blit(hint, (WINDOW_WIDTH // 2 - hint.get_width() // 2, WINDOW_HEIGHT - 85))
 
@@ -223,11 +223,12 @@ class MenuRenderer:
             else:
                 pygame.draw.rect(self.screen, COLOR_ACCENT, rect, 1, border_radius=6)
 
-            idx_text = self.font_large.render(f"{i + 1}", True, COLOR_HIGHLIGHT)
-            self.screen.blit(idx_text, (rect.x + 10, rect.y + 6))
+            if i == self.hover_index:
+                arrow = self.font_large.render(">", True, COLOR_HIGHLIGHT)
+                self.screen.blit(arrow, (rect.x + 6, rect.y + 6))
 
             name_text = self.font_medium.render(f"{gid} - {title_str}", True, COLOR_TEXT)
-            self.screen.blit(name_text, (rect.x + 44, rect.y + 6))
+            self.screen.blit(name_text, (rect.x + 28, rect.y + 6))
 
             if total > 0:
                 prog = f"{completed}/{total}"
@@ -236,10 +237,10 @@ class MenuRenderer:
             else:
                 prog = "--"
             prog_text = self.font_small.render(prog, True, COLOR_TEXT_DIM)
-            self.screen.blit(prog_text, (rect.x + 44, rect.y + 28))
+            self.screen.blit(prog_text, (rect.x + 28, rect.y + 28))
 
             if total > 0:
-                bar_x = rect.x + 44 + prog_text.get_width() + 8
+                bar_x = rect.x + 28 + prog_text.get_width() + 8
                 bar_y = rect.y + 32
                 bar_w = min(120, rect.right - bar_x - (40 if is_fully_completed else 12))
                 if bar_w > 20:
@@ -254,7 +255,7 @@ class MenuRenderer:
                 cur_lv = level_manager.get_current_level(gid)
                 if cur_lv is not None and cur_lv < total:
                     pt_text = self.font_small.render(f"L{cur_lv + 1}", True, COLOR_HIGHLIGHT)
-                    self.screen.blit(pt_text, (rect.x + 44, rect.y + 42))
+                    self.screen.blit(pt_text, (rect.x + 28, rect.y + 42))
 
     def _draw_scrollbar(self, max_scroll):
         track_x = WINDOW_WIDTH - self.SCROLLBAR_W
@@ -346,6 +347,43 @@ class MenuRenderer:
     def handle_scroll(self, y_scroll, games):
         step = self.GRID_CELL_H if self.view_mode == "grid" else self.LIST_ITEM_H
         self.scroll_offset -= y_scroll * step
+        self.clamp_scroll(games)
+
+    def navigate_up(self, games):
+        if not games:
+            return
+        if self.hover_index <= 0:
+            self.hover_index = len(games) - 1
+        else:
+            self.hover_index -= 1
+        self._ensure_hover_visible(games)
+
+    def navigate_down(self, games):
+        if not games:
+            return
+        if self.hover_index < 0 or self.hover_index >= len(games) - 1:
+            self.hover_index = 0
+        else:
+            self.hover_index += 1
+        self._ensure_hover_visible(games)
+
+    def _ensure_hover_visible(self, games):
+        if self.hover_index < 0 or not games:
+            return
+        content_h = self._content_height()
+        if self.view_mode == "grid":
+            row = self.hover_index // self.GRID_COLS
+            item_top = row * self.GRID_CELL_H
+            item_bottom = item_top + self.GRID_CELL_H
+        else:
+            item_top = self.hover_index * self.LIST_ITEM_H
+            item_bottom = item_top + self.LIST_ITEM_H
+        visible_top = self.scroll_offset
+        visible_bottom = self.scroll_offset + content_h
+        if item_top < visible_top:
+            self.scroll_offset = item_top
+        elif item_bottom > visible_bottom:
+            self.scroll_offset = item_bottom - content_h
         self.clamp_scroll(games)
 
     def start_scroll_drag(self, mouse_y):
@@ -677,7 +715,7 @@ class MenuRenderer:
             self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
                                    rect.y + rect.h // 2 - lbl.get_height() // 2))
 
-        sync_now_rect = pygame.Rect(WINDOW_WIDTH - 170, y + 70, 140, 40)
+        sync_now_rect = pygame.Rect(60, y + 120, 200, 36)
         if show_sync_button:
             self.button_rects["download"] = sync_now_rect
             is_sync_hover = (self.button_hover == "download")
@@ -689,7 +727,7 @@ class MenuRenderer:
             self.screen.blit(sync_lbl, (sync_now_rect.x + sync_now_rect.w // 2 - sync_lbl.get_width() // 2,
                                         sync_now_rect.y + sync_now_rect.h // 2 - sync_lbl.get_height() // 2))
 
-        y += 140
+        y += 170
         pygame.draw.line(self.screen, COLOR_TEXT_DIM, (60, y), (WINDOW_WIDTH - 60, y))
         y += 20
 

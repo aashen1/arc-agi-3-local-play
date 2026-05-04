@@ -11,6 +11,12 @@ from human_player.config import (
 
 
 class MenuRenderer:
+    """Render all menu screens: main menu, player select, settings, stats, etc.
+
+    Manages scroll state, hover highlights, and click hit-testing for
+    interactive UI elements.
+    """
+
     GRID_COLS = 5
     GRID_CELL_H = 88
     LIST_ITEM_H = 56
@@ -70,6 +76,7 @@ class MenuRenderer:
         self.scroll_offset = 0
 
     def draw_main_menu(self, games, level_manager, keymap_scheme, current_player="default"):
+        """Draw the main game selection menu with grid or list view."""
         self.screen.fill(COLOR_BG)
         self.game_rects = []
         self.button_rects = {}
@@ -312,6 +319,7 @@ class MenuRenderer:
                                    rect.y + rect.h // 2 - lbl.get_height() // 2))
 
     def handle_main_menu_click(self, pos) -> str | None:
+        """Return a command string for a click at pos, e.g. 'game:ABCD' or 'settings'."""
         if self.toggle_rect.collidepoint(pos):
             return "toggle_view"
         content_top = self.CONTENT_TOP
@@ -423,6 +431,7 @@ class MenuRenderer:
 
     def draw_player_select(self, players, current_player, player_metadata,
                            input_text="", input_active=False):
+        """Draw the player selection screen with create/delete options."""
         self.screen.fill(COLOR_BG)
         self.button_rects = {}
         self.player_rects = []
@@ -604,6 +613,7 @@ class MenuRenderer:
         self.button_rects["confirm_delete"] = confirm_rect
 
     def handle_player_click(self, pos, players) -> str | None:
+        """Return a command string for a click in the player select screen."""
         if hasattr(self, 'delete_rects'):
             for i, rect in enumerate(self.delete_rects):
                 if rect and rect.collidepoint(pos) and i < len(players):
@@ -617,6 +627,7 @@ class MenuRenderer:
         return None
 
     def draw_stats(self, games, level_manager, stats_manager):
+        """Draw the statistics overview screen."""
         self.screen.fill(COLOR_BG)
         self.button_rects = {}
 
@@ -659,6 +670,7 @@ class MenuRenderer:
                                back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
 
     def draw_settings(self, keymap_scheme, sync_mode="conservative", show_sync_button=False):
+        """Draw the settings screen with keymap, sync, and view mode options."""
         self.screen.fill(COLOR_BG)
         self.button_rects = {}
 
@@ -860,6 +872,7 @@ class MenuRenderer:
                                    rect.y + rect.h // 2 - lbl.get_height() // 2))
 
     def draw_level_select(self, game_id, total_levels, level_manager):
+        """Draw the level selection screen for a specific game."""
         self.screen.fill(COLOR_BG)
         self.button_rects = {}
         self.level_rects = []
@@ -951,6 +964,7 @@ class MenuRenderer:
                                back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
 
     def handle_level_select_click(self, pos) -> str | None:
+        """Return a command string like 'level:3' or 'back' for a click in level select."""
         for i, rect in enumerate(self.level_rects):
             if rect.collidepoint(pos):
                 return f"level:{i}"
@@ -1055,6 +1069,7 @@ class MenuRenderer:
                                ok_rect.y + ok_rect.h // 2 - lbl.get_height() // 2))
 
     def handle_button_click(self, pos) -> str | None:
+        """Return the action string of a generic button at pos, or None."""
         for name, rect in self.button_rects.items():
             if rect.collidepoint(pos):
                 return name

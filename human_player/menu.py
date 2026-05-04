@@ -20,11 +20,11 @@ class MenuRenderer:
 
     def __init__(self, screen: pygame.Surface):
         self.screen = screen
-        self.font_title = pygame.font.SysFont("consolas", 32, bold=True)
-        self.font_large = pygame.font.SysFont("consolas", 22, bold=True)
-        self.font_medium = pygame.font.SysFont("consolas", 16)
-        self.font_small = pygame.font.SysFont("consolas", 13)
-        self.font_cell_id = pygame.font.SysFont("consolas", 18, bold=True)
+        self.font_title = pygame.font.SysFont("consolas,monospace", 32, bold=True)
+        self.font_large = pygame.font.SysFont("consolas,monospace", 22, bold=True)
+        self.font_medium = pygame.font.SysFont("consolas,monospace", 16)
+        self.font_small = pygame.font.SysFont("consolas,monospace", 13)
+        self.font_cell_id = pygame.font.SysFont("consolas,monospace", 18, bold=True)
         self.hover_index = -1
         self.button_hover = None
         self.game_rects = []

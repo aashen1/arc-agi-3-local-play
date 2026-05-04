@@ -16,9 +16,9 @@ from human_player.config import (
 class Renderer:
     def __init__(self, screen: pygame.Surface):
         self.screen = screen
-        self.font_large = pygame.font.SysFont("consolas", 22, bold=True)
-        self.font_medium = pygame.font.SysFont("consolas", 16)
-        self.font_small = pygame.font.SysFont("consolas", 13)
+        self.font_large = pygame.font.SysFont("consolas,monospace", 22, bold=True)
+        self.font_medium = pygame.font.SysFont("consolas,monospace", 16)
+        self.font_small = pygame.font.SysFont("consolas,monospace", 13)
         self._grid_surface = pygame.Surface((GRID_PIXEL, GRID_PIXEL))
         self._hover_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
         self._hover_surface.fill((255, 255, 255, 60))

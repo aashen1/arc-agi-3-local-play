@@ -144,10 +144,6 @@ def main():
                         state = "PLAYER_SELECT"
                         player_input_text = ""
                         player_input_active = False
-                    elif result == "download":
-                        state = "SYNCING"
-                        sync_progress = [0, 0, "", "starting"]
-                        sync_result = None
                     elif isinstance(result, str) and result.startswith("game:"):
                         idx = int(result.split(":")[1])
                         if idx < len(games):
@@ -195,6 +191,26 @@ def main():
                         set_sync_mode(result)
                         game_manager = GameManager()
                         show_sync_button = game_manager._show_sync_button
+                    elif result == "download":
+                        state = "SYNCING"
+                        sync_progress = [0, 0, "", "starting"]
+                        sync_result = None
+
+                elif state == "SYNC_COMPLETE":
+                    if event.type == pygame.KEYDOWN:
+                        sync_thread = None
+                        game_manager = GameManager()
+                        games = game_manager.list_games()
+                        show_sync_button = game_manager._show_sync_button
+                        state = "MAIN_MENU"
+                    elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        btn = menu_renderer.handle_button_click(event.pos)
+                        if btn == "ok":
+                            sync_thread = None
+                            game_manager = GameManager()
+                            games = game_manager.list_games()
+                            show_sync_button = game_manager._show_sync_button
+                            state = "MAIN_MENU"
 
                 elif state == "STATS":
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -223,6 +239,10 @@ def main():
                     elif isinstance(result, str) and result.startswith("input:"):
                         player_input_text = result.split(":", 1)[1]
                         player_input_active = True
+                    elif result == "input_focus":
+                        player_input_active = True
+                    elif result == "input_blur":
+                        player_input_active = False
 
                 elif state == "GAME":
                     overlay_just_set = False
@@ -364,7 +384,6 @@ def main():
                 menu_renderer.draw_main_menu(
                     games, level_manager, keymap_scheme,
                     player_manager.get_current_player(),
-                    show_sync_button=show_sync_button,
                 )
 
             elif state == "SYNCING":
@@ -393,26 +412,10 @@ def main():
 
             elif state == "SYNC_COMPLETE":
                 menu_renderer.draw_sync_complete(sync_result)
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        pygame.quit()
-                        sys.exit()
-                    if event.type == pygame.KEYDOWN or (
-                        event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
-                    ):
-                        btn = menu_renderer.handle_button_click(
-                            _window_to_design(*pygame.mouse.get_pos()) if event.type == pygame.MOUSEBUTTONDOWN else (0, 0)
-                        )
-                        if btn == "ok" or event.type == pygame.KEYDOWN:
-                            sync_thread = None
-                            game_manager = GameManager()
-                            games = game_manager.list_games()
-                            show_sync_button = game_manager._show_sync_button
-                            state = "MAIN_MENU"
 
             elif state == "SETTINGS":
                 from human_player.config import get_sync_mode
-                menu_renderer.draw_settings(keymap_scheme, sync_mode=get_sync_mode())
+                menu_renderer.draw_settings(keymap_scheme, sync_mode=get_sync_mode(), show_sync_button=show_sync_button)
 
             elif state == "STATS":
                 menu_renderer.draw_stats(games, level_manager, stats_manager)
@@ -476,8 +479,6 @@ def _handle_menu_event(event, menu_renderer, games):
             return "stats"
         if event.key == pygame.K_p:
             return "player"
-        if event.key == pygame.K_d:
-            return "download"
         if pygame.K_1 <= event.key <= pygame.K_9:
             idx = event.key - pygame.K_1
             if idx < len(games):
@@ -491,10 +492,16 @@ def _handle_settings_event(event, menu_renderer, keymap_scheme):
     if event.type == pygame.KEYDOWN:
         if event.key == pygame.K_ESCAPE:
             return "back"
+        if event.key == pygame.K_d:
+            return "download"
     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
         btn = menu_renderer.handle_button_click(event.pos)
         if btn in ("wasd", "arrows"):
             return btn
+        if btn in ("conservative", "auto"):
+            return btn
+        if btn == "download":
+            return "download"
         if btn == "back":
             return "back"
     return False
@@ -514,9 +521,12 @@ def _handle_player_event(event, menu_renderer, player_manager, input_text):
             new_text = input_text + event.unicode
             return f"input:{new_text}"
     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        if hasattr(menu_renderer, 'input_rect') and menu_renderer.input_rect.collidepoint(event.pos):
+            return "input_focus"
         result = menu_renderer.handle_player_click(event.pos, players)
         if result:
             return result
+        return "input_blur"
     return False
 
 
@@ -720,6 +730,10 @@ def _show_level_select(game_id, total_levels, level_manager, menu_renderer,
                         menu_renderer.level_input_text += event.unicode
                         menu_renderer.level_input_active = True
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if hasattr(menu_renderer, 'level_input_rect') and menu_renderer.level_input_rect.collidepoint(event.pos):
+                    menu_renderer.level_input_active = True
+                else:
+                    menu_renderer.level_input_active = False
                 result = menu_renderer.handle_level_select_click(event.pos)
                 if result and result.startswith("level:"):
                     return result

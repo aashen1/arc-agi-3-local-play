@@ -63,7 +63,7 @@ class MenuRenderer:
         set_view_mode(self.view_mode)
         self.scroll_offset = 0
 
-    def draw_main_menu(self, games, level_manager, keymap_scheme, current_player="default", show_sync_button=False):
+    def draw_main_menu(self, games, level_manager, keymap_scheme, current_player="default"):
         self.screen.fill(COLOR_BG)
         self.game_rects = []
         self.button_rects = {}
@@ -108,11 +108,11 @@ class MenuRenderer:
         if max_scroll > 0:
             self._draw_scrollbar(max_scroll)
 
-        self._draw_bottom_buttons(show_sync_button=show_sync_button)
+        self._draw_bottom_buttons()
 
-        if show_sync_button and len(games) == 0:
+        if len(games) == 0:
             hint = self.font_small.render(
-                "No local games found — press [D] to sync", True, COLOR_GAMEOVER,
+                "No local games found — go to Settings to sync", True, COLOR_GAMEOVER,
             )
         else:
             hint = self.font_small.render(
@@ -275,7 +275,7 @@ class MenuRenderer:
         thumb_color = COLOR_HIGHLIGHT if self.scroll_dragging else COLOR_ACCENT
         pygame.draw.rect(self.screen, thumb_color, self.scrollbar_thumb_rect, border_radius=4)
 
-    def _draw_bottom_buttons(self, show_sync_button=False):
+    def _draw_bottom_buttons(self):
         btn_y = WINDOW_HEIGHT - 50
         player_rect = pygame.Rect(40, btn_y, 140, 36)
         settings_rect = pygame.Rect(200, btn_y, 120, 36)
@@ -287,9 +287,6 @@ class MenuRenderer:
             "stats": stats_rect,
             "quit": quit_rect,
         }
-        if show_sync_button:
-            download_rect = pygame.Rect(WINDOW_WIDTH - 310, btn_y, 140, 36)
-            self.button_rects["download"] = download_rect
 
         for name, rect in self.button_rects.items():
             is_hovered = (self.button_hover == name)
@@ -302,7 +299,6 @@ class MenuRenderer:
                 "settings": "[S] Settings",
                 "stats": "[V] Stats",
                 "quit": "[Q] Quit",
-                "download": "[D] Sync",
             }
             lbl = self.font_small.render(labels[name], True, COLOR_TEXT)
             self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
@@ -422,11 +418,13 @@ class MenuRenderer:
         y += 25
 
         input_rect = pygame.Rect(60, y, WINDOW_WIDTH - 180, 36)
+        self.input_rect = input_rect
         border_color = COLOR_HIGHLIGHT if input_active else COLOR_ACCENT
         pygame.draw.rect(self.screen, COLOR_PANEL, input_rect, border_radius=4)
         pygame.draw.rect(self.screen, border_color, input_rect, 2, border_radius=4)
 
-        display_text = input_text + ("|" if input_active else "")
+        cursor_visible = input_active and (pygame.time.get_ticks() // 500) % 2 == 0
+        display_text = input_text + ("|" if cursor_visible else "")
         input_render = self.font_medium.render(display_text, True, COLOR_TEXT)
         self.screen.blit(input_render, (input_rect.x + 10, input_rect.y + 8))
 
@@ -496,7 +494,7 @@ class MenuRenderer:
         self.screen.blit(lbl, (back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
                                back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
 
-    def draw_settings(self, keymap_scheme, sync_mode="conservative"):
+    def draw_settings(self, keymap_scheme, sync_mode="conservative", show_sync_button=False):
         self.screen.fill(COLOR_BG)
         self.button_rects = {}
 
@@ -552,6 +550,18 @@ class MenuRenderer:
             lbl = self.font_medium.render(sync_labels[name], True, color)
             self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
                                    rect.y + rect.h // 2 - lbl.get_height() // 2))
+
+        sync_now_rect = pygame.Rect(WINDOW_WIDTH - 170, y + 70, 140, 40)
+        if show_sync_button:
+            self.button_rects["download"] = sync_now_rect
+            is_sync_hover = (self.button_hover == "download")
+            sync_bg = (60, 60, 80) if is_sync_hover else COLOR_PANEL
+            sync_border = COLOR_HIGHLIGHT if is_sync_hover else COLOR_ACCENT
+            pygame.draw.rect(self.screen, sync_bg, sync_now_rect, border_radius=4)
+            pygame.draw.rect(self.screen, sync_border, sync_now_rect, 1, border_radius=4)
+            sync_lbl = self.font_medium.render("[D] Sync Now", True, COLOR_TEXT)
+            self.screen.blit(sync_lbl, (sync_now_rect.x + sync_now_rect.w // 2 - sync_lbl.get_width() // 2,
+                                        sync_now_rect.y + sync_now_rect.h // 2 - sync_lbl.get_height() // 2))
 
         y += 140
         pygame.draw.line(self.screen, COLOR_TEXT_DIM, (60, y), (WINDOW_WIDTH - 60, y))
@@ -751,11 +761,13 @@ class MenuRenderer:
         self.screen.blit(input_label, (60, input_y))
 
         input_rect = pygame.Rect(180, input_y - 2, 120, 30)
+        self.level_input_rect = input_rect
         border_color = COLOR_HIGHLIGHT if self.level_input_active else COLOR_ACCENT
         pygame.draw.rect(self.screen, COLOR_PANEL, input_rect, border_radius=4)
         pygame.draw.rect(self.screen, border_color, input_rect, 2, border_radius=4)
 
-        display_text = self.level_input_text + ("|" if self.level_input_active else "")
+        cursor_visible = self.level_input_active and (pygame.time.get_ticks() // 500) % 2 == 0
+        display_text = self.level_input_text + ("|" if cursor_visible else "")
         input_render = self.font_medium.render(display_text, True, COLOR_TEXT)
         self.screen.blit(input_render, (input_rect.x + 8, input_rect.y + 5))
 

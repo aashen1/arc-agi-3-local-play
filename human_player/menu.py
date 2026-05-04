@@ -1,3 +1,18 @@
+"""Menu rendering and interaction for the ARC-AGI-3 Human Player client.
+
+This module contains the MenuRenderer class which handles all menu screens:
+- Main menu (game selection grid/list view)
+- Settings (keymap scheme, sync mode)
+- Player selection (create, switch, delete players)
+- Stats display
+- Game sync progress
+- Resume/completed/level-select prompts
+
+The class is intentionally kept in a single file because all draw_* and
+handle_* methods share state (button_rects, hover_index, scroll state,
+input fields). Splitting would increase coupling rather than reduce it.
+"""
+
 import pygame
 from datetime import datetime
 

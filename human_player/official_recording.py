@@ -21,6 +21,14 @@ ACTION_ID_MAP = {
 
 
 class OfficialRecordingManager:
+    """Produce ARC-AGI-3 official-format JSONL recordings.
+
+    Each session creates a ``<game_id>.<guid>.recording.jsonl`` file and
+    updates an ``index.json`` that tracks all sessions for the game. The
+    recording format matches the ARC-AGI-3 specification so files can be
+    uploaded directly to arcprize.org.
+    """
+
     def __init__(self, player_manager: PlayerManager):
         self._pm = player_manager
         self._guid = None
@@ -38,10 +46,21 @@ class OfficialRecordingManager:
 
     @property
     def is_recording(self) -> bool:
+        """Return True if a recording session is currently active."""
         return self._file is not None
 
     def start_session(self, game_id: str, win_levels: int,
                       levels_at_start: int = 0) -> str:
+        """Begin a new recording session and return its GUID.
+
+        Args:
+            game_id: The 4-character game identifier.
+            win_levels: Total number of win levels in this game.
+            levels_at_start: Levels already completed when the session starts.
+
+        Returns:
+            The UUID string assigned to this session.
+        """
         self._guid = str(uuid.uuid4())
         self._game_id = game_id
         self._win_levels = win_levels
@@ -68,6 +87,15 @@ class OfficialRecordingManager:
     def record_step(self, action: GameAction, action_data: dict | None,
                     obs, available_actions: list,
                     reasoning: dict | str | None = None) -> None:
+        """Append one step record to the current session file.
+
+        Args:
+            action: The GameAction that was executed.
+            action_data: Optional payload (e.g. x/y for ACTION6).
+            obs: The frame observation returned after the action.
+            available_actions: List of GameAction values the player can use next.
+            reasoning: Optional agent reasoning text (only recorded in AGENT mode).
+        """
         if self._file is None:
             return
 
@@ -136,6 +164,11 @@ class OfficialRecordingManager:
         self._file.flush()
 
     def end_session(self, final_state: str) -> None:
+        """Close the session, write a summary record, and update the index.
+
+        Args:
+            final_state: The game's terminal state, e.g. "WIN" or "GAME_OVER".
+        """
         if self._file is None:
             return
 
@@ -182,6 +215,14 @@ class OfficialRecordingManager:
         self._game_id = None
 
     def get_session_index(self, game_id: str) -> dict:
+        """Load or create the session index for a game.
+
+        Args:
+            game_id: The 4-character game identifier.
+
+        Returns:
+            Dict with keys: game_id, player, first_win_index, sessions.
+        """
         recordings_dir = self._pm.get_recordings_dir(game_id)
         index_path = os.path.join(recordings_dir, "index.json")
         if os.path.exists(index_path):
@@ -198,6 +239,14 @@ class OfficialRecordingManager:
         }
 
     def list_sessions(self, game_id: str = None) -> list[dict]:
+        """Return session entries from the index, optionally filtered by game.
+
+        Args:
+            game_id: If given, only return sessions for this game.
+
+        Returns:
+            List of session entry dicts from the index.
+        """
         if game_id:
             index = self.get_session_index(game_id)
             return index.get("sessions", [])

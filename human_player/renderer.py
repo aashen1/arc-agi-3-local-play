@@ -14,6 +14,8 @@ from human_player.config import (
 
 
 class Renderer:
+    """Render the game grid, HUD, and action buttons onto a Pygame surface."""
+
     def __init__(self, screen: pygame.Surface):
         self.screen = screen
         self.font_large = pygame.font.SysFont("consolas,monospace", 22, bold=True)
@@ -27,6 +29,7 @@ class Renderer:
         self._overlay_buttons = []
 
     def pixel_to_grid(self, px: int, py: int) -> tuple[int, int] | tuple[None, None]:
+        """Convert pixel coordinates to grid (col, row), or (None, None) if outside."""
         gx = (px - GRID_OFFSET_X) // CELL_SIZE
         gy = (py - GRID_OFFSET_Y) // CELL_SIZE
         if 0 <= gx < GRID_SIZE and 0 <= gy < GRID_SIZE:
@@ -34,12 +37,14 @@ class Renderer:
         return None, None
 
     def check_bottom_button_click(self, pos) -> str | None:
+        """Return the action ID of a bottom button at pos, or None."""
         for rect, action_id in self._bottom_buttons:
             if rect.collidepoint(pos):
                 return action_id
         return None
 
     def update_bottom_button_hover(self, pos):
+        """Update the hovered button state based on mouse position."""
         self._hovered_button = None
         for rect, action_id in self._bottom_buttons:
             if rect.collidepoint(pos):
@@ -51,6 +56,7 @@ class Renderer:
                 break
 
     def check_overlay_button_click(self, pos) -> str | None:
+        """Return the action ID of an overlay button at pos, or None."""
         for rect, action_id in self._overlay_buttons:
             if rect.collidepoint(pos):
                 return action_id
@@ -59,6 +65,7 @@ class Renderer:
     def draw_frame(self, frame, mouse_grid_pos, step_count, elapsed_ms,
                    levels_completed, max_levels, available_actions,
                    keymap_scheme, game_id):
+        """Draw the complete game frame: grid, HUD, panel, and action buttons."""
         self.screen.fill(COLOR_BG)
         self._draw_grid(frame, mouse_grid_pos)
         self._draw_hud_top(game_id, levels_completed, max_levels, keymap_scheme)
@@ -232,6 +239,7 @@ class Renderer:
 
     def draw_overlay_win(self, level_index, steps, time_ms,
                          best_steps, best_time_ms):
+        """Draw the level-complete overlay with stats and a Continue button."""
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 140))
         self.screen.blit(overlay, (0, 0))
@@ -260,6 +268,7 @@ class Renderer:
         self.screen.blit(hint, (box_x + 20, box_y + box_h - 30))
 
     def draw_overlay_game_over(self, step_count):
+        """Draw the game-over overlay with a Try Again button."""
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 140))
         self.screen.blit(overlay, (0, 0))
@@ -303,6 +312,7 @@ class Renderer:
             x += button_w + 15
 
     def draw_overlay_all_complete(self, game_id, total_steps, total_time_ms):
+        """Draw the all-levels-complete overlay with a Back to Menu button."""
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 160))
         self.screen.blit(overlay, (0, 0))

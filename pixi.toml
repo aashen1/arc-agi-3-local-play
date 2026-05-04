@@ -1,7 +1,7 @@
 [workspace]
 authors = ["Ash (GitHub@aashen1)"]
 channels = ["conda-forge"]
-name = "taa3-try-arg-agi-3"
+name = "arc-agi-3-human-player"
 platforms = ["win-64"]
 version = "0.1.0"
 

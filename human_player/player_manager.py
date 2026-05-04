@@ -1,7 +1,6 @@
 import json
 import os
 import shutil
-from datetime import datetime, timezone
 
 from human_player.config import PLAYERS_DIR, USER_CONFIG_FILE, _load_user_config, _save_user_config
 
@@ -118,8 +117,7 @@ class PlayerManager:
         player_dir = os.path.join(PLAYERS_DIR, name)
         if not os.path.isdir(player_dir):
             return False
-        trashbin = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".trashbin")
-        os.makedirs(trashbin, exist_ok=True)
-        dest = os.path.join(trashbin, f"{name}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}")
-        shutil.move(player_dir, dest)
+        if not os.path.abspath(player_dir).startswith(os.path.abspath(PLAYERS_DIR)):
+            return False
+        shutil.rmtree(player_dir)
         return True

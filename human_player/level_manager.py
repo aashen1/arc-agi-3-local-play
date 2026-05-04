@@ -6,15 +6,23 @@ from human_player.config import PROGRESS_FILE, DATA_DIR
 
 
 class LevelManager:
+    """Manage level completion progress for each game.
+
+    Progress is persisted as a single JSON file mapping game IDs to their
+    level completion data (best steps, best time, attempt count, etc.).
+    """
+
     def __init__(self, progress_file: str = None):
         self._progress_file = progress_file or PROGRESS_FILE
         self.progress = self._load_progress()
 
     def set_progress_file(self, progress_file: str):
+        """Switch to a different progress file and reload."""
         self._progress_file = progress_file
         self.progress = self._load_progress()
 
     def get_game_progress(self, game_id: str) -> dict:
+        """Return the progress dict for a game, or a default empty one."""
         games = self.progress.get("games", {})
         if game_id not in games:
             return {"game_id": game_id, "levels": {}, "total_levels": 0}
@@ -22,6 +30,14 @@ class LevelManager:
 
     def update_level_status(self, game_id: str, level_index: int,
                             steps: int, time_ms: int):
+        """Record a level completion, keeping the best steps and time.
+
+        Args:
+            game_id: The 4-character game identifier.
+            level_index: Zero-based level index.
+            steps: Number of actions taken to complete the level.
+            time_ms: Elapsed time in milliseconds.
+        """
         if "games" not in self.progress:
             self.progress["games"] = {}
 
@@ -53,6 +69,7 @@ class LevelManager:
         self._save_progress()
 
     def update_total_levels(self, game_id: str, total: int):
+        """Set the total number of levels for a game."""
         if "games" not in self.progress:
             self.progress["games"] = {}
         if game_id not in self.progress["games"]:
@@ -61,10 +78,15 @@ class LevelManager:
         self._save_progress()
 
     def get_completed_count(self, game_id: str) -> int:
+        """Return how many levels are marked as completed for a game."""
         game = self.get_game_progress(game_id)
         return sum(1 for lv in game.get("levels", {}).values() if lv.get("completed"))
 
     def get_next_uncompleted_level(self, game_id: str) -> int | None:
+        """Return the next level index to play, or None if all completed.
+
+        Returns 0 if no levels have been completed yet.
+        """
         game = self.get_game_progress(game_id)
         levels = game.get("levels", {})
         if not levels:
@@ -81,26 +103,35 @@ class LevelManager:
         return next_level
 
     def get_total_levels(self, game_id: str) -> int:
+        """Return the total number of levels for a game."""
         game = self.get_game_progress(game_id)
         return game.get("total_levels", 0)
 
     def get_best_steps(self, game_id: str, level_index: int) -> int | None:
+        """Return the best step count for a level, or None if not completed."""
         game = self.get_game_progress(game_id)
         level = game.get("levels", {}).get(str(level_index), {})
         return level.get("best_steps")
 
     def get_best_time_ms(self, game_id: str, level_index: int) -> int | None:
+        """Return the best time (ms) for a level, or None if not completed."""
         game = self.get_game_progress(game_id)
         level = game.get("levels", {}).get(str(level_index), {})
         return level.get("best_time_ms")
 
     def is_fully_completed(self, game_id: str) -> bool:
+        """Check whether all levels of a game are completed."""
         total = self.get_total_levels(game_id)
         if total <= 0:
             return False
         return self.get_completed_count(game_id) >= total
 
     def get_level_info(self, game_id: str, level_index: int) -> dict:
+        """Return completion info for a single level.
+
+        Returns:
+            Dict with keys: completed, best_steps, best_time_ms, attempts.
+        """
         game = self.get_game_progress(game_id)
         level = game.get("levels", {}).get(str(level_index), {})
         return {
@@ -111,10 +142,12 @@ class LevelManager:
         }
 
     def get_current_level(self, game_id: str) -> int | None:
+        """Return the saved current level index, or None if unset."""
         game = self.get_game_progress(game_id)
         return game.get("current_level")
 
     def set_current_level(self, game_id: str, level_index: int):
+        """Persist the current level index for a game."""
         if "games" not in self.progress:
             self.progress["games"] = {}
         if game_id not in self.progress["games"]:
@@ -123,6 +156,7 @@ class LevelManager:
         self._save_progress()
 
     def get_last_played_game_id(self) -> str | None:
+        """Return the game_id with the most recent completion timestamp."""
         latest_time = None
         latest_game = None
         for game_id, game in self.progress.get("games", {}).items():

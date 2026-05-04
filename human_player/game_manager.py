@@ -15,6 +15,13 @@ ANIMATION_FPS = 15
 
 
 class GameManager:
+    """Mediate between the Pygame UI and the ARC-AGI-3 SDK.
+
+    Wraps ``arc_agi.Arcade`` and a single ``Environment``, handling game
+    lifecycle (start, step, reset, close), frame animation, and scorecard
+    management for both HUMAN and AGENT player modes.
+    """
+
     def __init__(self):
         op_mode = get_operation_mode()
         player_mode = get_player_mode()
@@ -52,9 +59,18 @@ class GameManager:
         self._anim_frame_duration: float = 1.0 / ANIMATION_FPS
 
     def list_games(self):
+        """Return the list of available game environments from the Arcade."""
         return self.arc.get_environments()
 
     def start_game(self, game_id: str) -> bool:
+        """Create and reset an environment for the given game.
+
+        Args:
+            game_id: The 4-character game identifier.
+
+        Returns:
+            True if the environment was created and reset successfully.
+        """
         self.game_id = game_id
         self.step_count = 0
         self.total_steps = 0
@@ -88,6 +104,16 @@ class GameManager:
 
     def execute_action(self, action: GameAction, data: dict = None,
                        reasoning: dict | str | None = None) -> FrameDataRaw | None:
+        """Execute a game action and return the observation.
+
+        Args:
+            action: The GameAction to execute.
+            data: Optional payload (e.g. x/y coordinates for ACTION6).
+            reasoning: Optional agent reasoning (only sent in AGENT mode).
+
+        Returns:
+            The FrameDataRaw observation, or None if no env is active.
+        """
         if self.env is None:
             return None
 
@@ -111,6 +137,7 @@ class GameManager:
         return obs
 
     def reset_level(self) -> FrameDataRaw | None:
+        """Reset the current level and return the initial observation."""
         if self.env is None:
             return None
 
@@ -125,6 +152,7 @@ class GameManager:
         return obs
 
     def close_game(self):
+        """Close the current environment and its scorecard (if any)."""
         if is_agent_mode() and self._scorecard_id:
             try:
                 self.arc.close_scorecard(self._scorecard_id)
@@ -140,6 +168,7 @@ class GameManager:
         self.game_id = None
 
     def get_available_action_ids(self) -> list[int]:
+        """Return the list of available action IDs for the current frame."""
         if self.env is None:
             return []
         available = self.env.action_space
@@ -147,6 +176,7 @@ class GameManager:
         return [ACTION_ID_MAP[a] for a in available if a in ACTION_ID_MAP]
 
     def get_frame_as_2d_list(self) -> list:
+        """Return the current frame as a nested Python list (for serialization)."""
         obs = self.env.observation_space if self.env else None
         if obs is None or obs.frame is None:
             return []
@@ -162,6 +192,7 @@ class GameManager:
         return []
 
     def get_current_frame(self) -> np.ndarray | None:
+        """Return the current frame as a numpy array, considering animation."""
         if self.is_animating():
             return self._anim_frames[self._anim_index]
 
@@ -176,9 +207,15 @@ class GameManager:
         return np.array(frame)
 
     def is_animating(self) -> bool:
+        """Return True if a frame animation sequence is still playing."""
         return len(self._anim_frames) > 0 and self._anim_index < len(self._anim_frames)
 
     def advance_animation(self) -> bool:
+        """Advance the animation by one tick based on wall-clock time.
+
+        Returns:
+            True if animation is still playing, False when it finishes.
+        """
         if not self.is_animating():
             return False
 
@@ -196,6 +233,7 @@ class GameManager:
         return True
 
     def skip_animation(self):
+        """Immediately finish the current animation sequence."""
         self._anim_frames = []
         self._anim_index = 0
 
@@ -215,16 +253,19 @@ class GameManager:
             self._anim_index = 0
 
     def get_elapsed_ms(self) -> int:
+        """Return milliseconds elapsed since the current level started."""
         if self.level_start_time is None:
             return 0
         return int((time.time() - self.level_start_time) * 1000)
 
     def get_total_elapsed_ms(self) -> int:
+        """Return milliseconds elapsed since the current game started."""
         if self.game_start_time is None:
             return 0
         return int((time.time() - self.game_start_time) * 1000)
 
     def get_state_summary(self) -> dict:
+        """Return a dict summarizing the current game state for the HUD."""
         return {
             "game_id": self.game_id,
             "step_count": self.step_count,
@@ -236,12 +277,24 @@ class GameManager:
         }
 
     def did_level_up(self) -> bool:
+        """Check if the player completed a new level since the last check."""
         if self.levels_completed > self._prev_levels_completed:
             self._prev_levels_completed = self.levels_completed
             return True
         return False
 
     def jump_to_level(self, level_index: int) -> bool:
+        """Jump directly to a specific level by index.
+
+        Uses internal SDK attributes to bypass normal progression. May break
+        if the upstream SDK changes its private API.
+
+        Args:
+            level_index: Zero-based level index to jump to.
+
+        Returns:
+            True if the jump succeeded, False otherwise.
+        """
         if self.env is None:
             return False
 

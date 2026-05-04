@@ -9,6 +9,12 @@ from human_player.mode import get_player_mode, get_agent_type, PlayerMode
 
 
 class RecordingManager:
+    """Lightweight JSONL-based gameplay recorder.
+
+    Each session creates one ``.jsonl`` file where every line is a JSON
+    object describing a single step (action, frame state, timing, etc.).
+    """
+
     def __init__(self):
         self.current_session_id = None
         self.current_file = None
@@ -16,6 +22,14 @@ class RecordingManager:
         self._step_count = 0
 
     def start_session(self, game_id: str) -> str:
+        """Open a new recording session and return its ID.
+
+        Args:
+            game_id: The 4-character game identifier.
+
+        Returns:
+            A session ID string in the form ``<game_id>_<timestamp>``.
+        """
         os.makedirs(RECORDINGS_DIR, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.current_session_id = f"{game_id}_{timestamp}"
@@ -34,6 +48,15 @@ class RecordingManager:
 
     def record_step(self, action: GameAction, data: dict | None,
                     obs: FrameDataRaw | None, step_count: int, elapsed_ms: int):
+        """Write one step record to the current session file.
+
+        Args:
+            action: The GameAction that was executed.
+            data: Optional action payload (e.g. x/y coordinates for ACTION6).
+            obs: The frame observation returned after the action, or None.
+            step_count: Current step number within the level.
+            elapsed_ms: Milliseconds elapsed since the level started.
+        """
         if self.current_file is None:
             return
 
@@ -59,6 +82,7 @@ class RecordingManager:
         self.current_file.flush()
 
     def end_session(self):
+        """Close the current session file and reset session state."""
         if self.current_file:
             self.current_file.close()
             self.current_file = None
@@ -66,6 +90,15 @@ class RecordingManager:
         self.current_game_id = None
 
     def list_recordings(self, game_id: str = None) -> list[dict]:
+        """List available recording files, newest first.
+
+        Args:
+            game_id: If given, only list recordings for this game.
+
+        Returns:
+            List of dicts with filename, filepath, game_id, session_id,
+            size_bytes, and modified timestamp.
+        """
         if not os.path.exists(RECORDINGS_DIR):
             return []
 
@@ -90,6 +123,14 @@ class RecordingManager:
         return results
 
     def load_recording(self, filepath: str) -> list[dict]:
+        """Parse a JSONL recording file into a list of step dicts.
+
+        Args:
+            filepath: Absolute path to the ``.jsonl`` file.
+
+        Returns:
+            List of parsed JSON objects, one per step.
+        """
         records = []
         try:
             with open(filepath, "r", encoding="utf-8") as f:

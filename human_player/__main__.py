@@ -64,6 +64,9 @@ def main():
     session_id = None
     player_input_text = ""
     player_input_active = False
+    delete_target = None
+    delete_confirm_text = ""
+    delete_confirm_active = False
     win_elapsed_ms = 0
     win_step_count = 0
     total_elapsed_ms = 0
@@ -144,6 +147,9 @@ def main():
                         state = "PLAYER_SELECT"
                         player_input_text = ""
                         player_input_active = False
+                        delete_target = None
+                        delete_confirm_text = ""
+                        delete_confirm_active = False
                     elif isinstance(result, str) and result.startswith("game:"):
                         idx = int(result.split(":")[1])
                         if idx < len(games):
@@ -221,28 +227,55 @@ def main():
                             state = "MAIN_MENU"
 
                 elif state == "PLAYER_SELECT":
-                    result = _handle_player_event(
-                        event, menu_renderer, player_manager, player_input_text,
-                    )
-                    if result == "back":
-                        state = "MAIN_MENU"
-                    elif result == "create":
-                        name = player_input_text.strip()
-                        if name:
-                            _switch_player(name)
-                            player_input_text = ""
+                    if delete_target:
+                        result = _handle_delete_confirm_event(
+                            event, menu_renderer, delete_target,
+                            delete_confirm_text, delete_confirm_active,
+                        )
+                        if result == "cancel_delete":
+                            delete_target = None
+                            delete_confirm_text = ""
+                            delete_confirm_active = False
+                        elif result == "confirm_delete":
+                            player_manager.delete_player(delete_target)
+                            delete_target = None
+                            delete_confirm_text = ""
+                            delete_confirm_active = False
+                        elif isinstance(result, str) and result.startswith("del_input:"):
+                            delete_confirm_text = result.split(":", 1)[1]
+                            delete_confirm_active = True
+                        elif result == "del_input_focus":
+                            delete_confirm_active = True
+                        elif result == "del_input_blur":
+                            delete_confirm_active = False
+                    else:
+                        result = _handle_player_event(
+                            event, menu_renderer, player_manager, player_input_text,
+                        )
+                        if result == "back":
                             state = "MAIN_MENU"
-                    elif isinstance(result, str) and result.startswith("select:"):
-                        name = result.split(":", 1)[1]
-                        _switch_player(name)
-                        state = "MAIN_MENU"
-                    elif isinstance(result, str) and result.startswith("input:"):
-                        player_input_text = result.split(":", 1)[1]
-                        player_input_active = True
-                    elif result == "input_focus":
-                        player_input_active = True
-                    elif result == "input_blur":
-                        player_input_active = False
+                        elif result == "create":
+                            name = player_input_text.strip()
+                            if name:
+                                _switch_player(name)
+                                player_input_text = ""
+                                state = "MAIN_MENU"
+                        elif isinstance(result, str) and result.startswith("select:"):
+                            name = result.split(":", 1)[1]
+                            _switch_player(name)
+                            state = "MAIN_MENU"
+                        elif isinstance(result, str) and result.startswith("delete:"):
+                            name = result.split(":", 1)[1]
+                            delete_target = name
+                            delete_confirm_text = ""
+                            delete_confirm_active = True
+                        elif isinstance(result, str) and result.startswith("input:"):
+                            player_input_text = result.split(":", 1)[1]
+                            player_input_active = True
+                        elif result == "input_focus":
+                            player_input_active = True
+                        elif result == "input_blur":
+                            player_input_active = False
 
                 elif state == "GAME":
                     overlay_just_set = False
@@ -422,10 +455,19 @@ def main():
 
             elif state == "PLAYER_SELECT":
                 players = player_manager.list_players()
+                player_metadata = {}
+                for p in players:
+                    player_metadata[p] = player_manager.get_player_metadata(p)
                 menu_renderer.draw_player_select(
                     players, player_manager.get_current_player(),
-                    player_input_text, player_input_active,
+                    player_metadata, player_input_text, player_input_active,
                 )
+                if delete_target:
+                    meta = player_metadata.get(delete_target, {})
+                    menu_renderer.draw_delete_confirm(
+                        delete_target, meta,
+                        delete_confirm_text, delete_confirm_active,
+                    )
 
             elif state == "GAME":
                 game_manager.advance_animation()
@@ -527,6 +569,33 @@ def _handle_player_event(event, menu_renderer, player_manager, input_text):
         if result:
             return result
         return "input_blur"
+    return False
+
+
+def _handle_delete_confirm_event(event, menu_renderer, target_name, confirm_text, confirm_active):
+    if event.type == pygame.KEYDOWN:
+        if event.key == pygame.K_ESCAPE:
+            return "cancel_delete"
+        if event.key == pygame.K_RETURN:
+            if confirm_text == target_name:
+                return "confirm_delete"
+            return False
+        if event.key == pygame.K_BACKSPACE:
+            new_text = confirm_text[:-1]
+            return f"del_input:{new_text}"
+        if event.unicode and event.unicode.isprintable() and len(confirm_text) < 30:
+            new_text = confirm_text + event.unicode
+            return f"del_input:{new_text}"
+    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        if hasattr(menu_renderer, 'delete_input_rect') and menu_renderer.delete_input_rect.collidepoint(event.pos):
+            return "del_input_focus"
+        for name, rect in menu_renderer.button_rects.items():
+            if rect.collidepoint(event.pos):
+                if name == "cancel_delete":
+                    return "cancel_delete"
+                if name == "confirm_delete" and confirm_text == target_name:
+                    return "confirm_delete"
+        return "del_input_blur"
     return False
 
 

@@ -1,9 +1,11 @@
 import pygame
+from datetime import datetime
 
 from human_player.config import (
     WINDOW_WIDTH, WINDOW_HEIGHT,
     COLOR_BG, COLOR_PANEL, COLOR_TEXT, COLOR_TEXT_DIM,
     COLOR_HIGHLIGHT, COLOR_WIN, COLOR_GAMEOVER, COLOR_ACCENT,
+    COLOR_DANGER, COLOR_DANGER_DIM,
     ACTION_LABELS, get_keymap_scheme, get_key_labels, get_view_mode, set_view_mode,
 )
 
@@ -28,6 +30,10 @@ class MenuRenderer:
         self.game_rects = []
         self.button_rects = {}
         self.player_rects = []
+        self.input_rect = pygame.Rect(0, 0, 0, 0)
+        self.level_input_rect = pygame.Rect(0, 0, 0, 0)
+        self.delete_rects = []
+        self.delete_input_rect = pygame.Rect(0, 0, 0, 0)
         self.view_mode = get_view_mode()
         self.scroll_offset = 0
         self.scroll_dragging = False
@@ -377,10 +383,12 @@ class MenuRenderer:
         self.scroll_offset = int(click_ratio * max_scroll)
         self.clamp_scroll(games)
 
-    def draw_player_select(self, players, current_player, input_text="", input_active=False):
+    def draw_player_select(self, players, current_player, player_metadata,
+                           input_text="", input_active=False):
         self.screen.fill(COLOR_BG)
         self.button_rects = {}
         self.player_rects = []
+        self.delete_rects = []
 
         title = self.font_large.render("Select Player", True, COLOR_ACCENT)
         self.screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 20))
@@ -391,7 +399,7 @@ class MenuRenderer:
         y = 100
         for i, player in enumerate(players):
             is_current = player == current_player
-            rect = pygame.Rect(60, y, WINDOW_WIDTH - 120, 40)
+            rect = pygame.Rect(60, y, WINDOW_WIDTH - 120, 56)
             self.player_rects.append(rect)
 
             bg = COLOR_ACCENT if is_current else COLOR_PANEL
@@ -401,13 +409,42 @@ class MenuRenderer:
 
             color = COLOR_BG if is_current else COLOR_TEXT
             name = self.font_medium.render(player, True, color)
-            self.screen.blit(name, (rect.x + 16, rect.y + rect.h // 2 - name.get_height() // 2))
+            self.screen.blit(name, (rect.x + 16, rect.y + 6))
 
             if is_current:
-                check = self.font_small.render("<-- active", True, COLOR_HIGHLIGHT)
-                self.screen.blit(check, (rect.right - check.get_width() - 12, rect.y + 12))
+                check = self.font_small.render("active", True, COLOR_HIGHLIGHT)
+                self.screen.blit(check, (rect.x + 16 + name.get_width() + 8, rect.y + 9))
 
-            y += 50
+            meta = player_metadata.get(player, {})
+            levels = meta.get("total_levels_completed", 0)
+            games = meta.get("total_games_played", 0)
+            time_ms = meta.get("total_time_ms", 0)
+            last_played = meta.get("last_played")
+
+            time_s = time_ms // 1000
+            time_str = f"{time_s // 3600}h{time_s % 3600 // 60}m" if time_s >= 3600 else f"{time_s // 60}m{time_s % 60}s" if time_s >= 60 else f"{time_s}s"
+
+            meta_parts = [f"{levels} levels", f"{games} games", time_str]
+            if last_played:
+                try:
+                    dt = datetime.fromisoformat(last_played)
+                    meta_parts.append(dt.strftime("%Y-%m-%d %H:%M"))
+                except (ValueError, TypeError):
+                    pass
+
+            meta_text = "  |  ".join(meta_parts)
+            meta_color = COLOR_BG if is_current else COLOR_TEXT_DIM
+            meta_render = self.font_small.render(meta_text, True, meta_color)
+            self.screen.blit(meta_render, (rect.x + 16, rect.y + 30))
+
+            if not is_current:
+                del_rect = pygame.Rect(rect.right - 36, rect.y + 12, 24, 24)
+                self.delete_rects.append(del_rect)
+                self._draw_trash_icon(del_rect)
+            else:
+                self.delete_rects.append(None)
+
+            y += 66
 
         y += 20
         pygame.draw.line(self.screen, COLOR_TEXT_DIM, (60, y), (WINDOW_WIDTH - 60, y))
@@ -443,7 +480,96 @@ class MenuRenderer:
         self.screen.blit(lbl, (back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
                                back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
 
+    def _draw_trash_icon(self, rect):
+        cx, cy = rect.centerx, rect.centery
+        s = 5
+        pygame.draw.rect(self.screen, COLOR_TEXT_DIM, (cx - s, cy - s + 2, s * 2, s * 2 + 1), 1)
+        pygame.draw.line(self.screen, COLOR_TEXT_DIM, (cx - s - 1, cy - s + 2), (cx + s + 1, cy - s + 2))
+        pygame.draw.line(self.screen, COLOR_TEXT_DIM, (cx - 2, cy - s), (cx - 2, cy - s + 2))
+        pygame.draw.line(self.screen, COLOR_TEXT_DIM, (cx + 2, cy - s), (cx + 2, cy - s + 2))
+        pygame.draw.line(self.screen, COLOR_TEXT_DIM, (cx - 3, cy - s + 1), (cx + 3, cy - s + 1))
+
+    def draw_delete_confirm(self, player_name, player_metadata, confirm_text="", confirm_active=False):
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 160))
+        self.screen.blit(overlay, (0, 0))
+
+        box_w, box_h = 440, 280
+        box_x = (WINDOW_WIDTH - box_w) // 2
+        box_y = (WINDOW_HEIGHT - box_h) // 2
+        pygame.draw.rect(self.screen, (40, 25, 25), (box_x, box_y, box_w, box_h), border_radius=8)
+        pygame.draw.rect(self.screen, COLOR_DANGER, (box_x, box_y, box_w, box_h), 2, border_radius=8)
+
+        title = self.font_large.render("Delete Player", True, COLOR_DANGER)
+        self.screen.blit(title, (box_x + 20, box_y + 16))
+
+        warn = self.font_medium.render("This action cannot be undone!", True, COLOR_GAMEOVER)
+        self.screen.blit(warn, (box_x + 20, box_y + 48))
+
+        meta = player_metadata
+        levels = meta.get("total_levels_completed", 0)
+        games = meta.get("total_games_played", 0)
+        time_ms = meta.get("total_time_ms", 0)
+        time_s = time_ms // 1000
+        time_str = f"{time_s // 3600}h{time_s % 3600 // 60}m" if time_s >= 3600 else f"{time_s // 60}m{time_s % 60}s" if time_s >= 60 else f"{time_s}s"
+
+        info_lines = [
+            f"Player: {player_name}",
+            f"Levels completed: {levels}  |  Games played: {games}  |  Time: {time_str}",
+        ]
+        last_played = meta.get("last_played")
+        if last_played:
+            try:
+                dt = datetime.fromisoformat(last_played)
+                info_lines.append(f"Last played: {dt.strftime('%Y-%m-%d %H:%M')}")
+            except (ValueError, TypeError):
+                pass
+
+        iy = box_y + 78
+        for line in info_lines:
+            info_render = self.font_small.render(line, True, COLOR_TEXT)
+            self.screen.blit(info_render, (box_x + 20, iy))
+            iy += 20
+
+        iy += 10
+        prompt = self.font_medium.render(f'Type "{player_name}" to confirm:', True, COLOR_TEXT)
+        self.screen.blit(prompt, (box_x + 20, iy))
+        iy += 24
+
+        input_rect = pygame.Rect(box_x + 20, iy, box_w - 40, 30)
+        self.delete_input_rect = input_rect
+        border_color = COLOR_HIGHLIGHT if confirm_active else COLOR_ACCENT
+        pygame.draw.rect(self.screen, COLOR_PANEL, input_rect, border_radius=4)
+        pygame.draw.rect(self.screen, border_color, input_rect, 2, border_radius=4)
+
+        cursor_visible = confirm_active and (pygame.time.get_ticks() // 500) % 2 == 0
+        display_text = confirm_text + ("|" if cursor_visible else "")
+        input_render = self.font_medium.render(display_text, True, COLOR_TEXT)
+        self.screen.blit(input_render, (input_rect.x + 8, input_rect.y + 6))
+
+        iy += 40
+        cancel_rect = pygame.Rect(box_x + 20, iy, 100, 30)
+        pygame.draw.rect(self.screen, COLOR_PANEL, cancel_rect, border_radius=4)
+        pygame.draw.rect(self.screen, COLOR_ACCENT, cancel_rect, 1, border_radius=4)
+        cancel_lbl = self.font_small.render("Cancel", True, COLOR_TEXT)
+        self.screen.blit(cancel_lbl, (cancel_rect.x + cancel_rect.w // 2 - cancel_lbl.get_width() // 2,
+                                       cancel_rect.y + cancel_rect.h // 2 - cancel_lbl.get_height() // 2))
+        self.button_rects["cancel_delete"] = cancel_rect
+
+        confirm_enabled = confirm_text == player_name
+        confirm_rect = pygame.Rect(box_x + box_w - 130, iy, 110, 30)
+        btn_color = COLOR_DANGER if confirm_enabled else COLOR_DANGER_DIM
+        pygame.draw.rect(self.screen, btn_color, confirm_rect, border_radius=4)
+        confirm_lbl = self.font_small.render("Delete", True, COLOR_BG if confirm_enabled else COLOR_TEXT_DIM)
+        self.screen.blit(confirm_lbl, (confirm_rect.x + confirm_rect.w // 2 - confirm_lbl.get_width() // 2,
+                                        confirm_rect.y + confirm_rect.h // 2 - confirm_lbl.get_height() // 2))
+        self.button_rects["confirm_delete"] = confirm_rect
+
     def handle_player_click(self, pos, players) -> str | None:
+        if hasattr(self, 'delete_rects'):
+            for i, rect in enumerate(self.delete_rects):
+                if rect and rect.collidepoint(pos) and i < len(players):
+                    return f"delete:{players[i]}"
         for i, rect in enumerate(self.player_rects):
             if rect.collidepoint(pos) and i < len(players):
                 return f"select:{players[i]}"

@@ -13,15 +13,27 @@ handle_* methods share state (button_rects, hover_index, scroll state,
 input fields). Splitting would increase coupling rather than reduce it.
 """
 
-import pygame
 from datetime import datetime
 
+import pygame
+
 from human_player.config import (
-    WINDOW_WIDTH, WINDOW_HEIGHT,
-    COLOR_BG, COLOR_PANEL, COLOR_TEXT, COLOR_TEXT_DIM,
-    COLOR_HIGHLIGHT, COLOR_WIN, COLOR_GAMEOVER, COLOR_ACCENT,
-    COLOR_DANGER, COLOR_DANGER_DIM,
-    ACTION_LABELS, get_keymap_scheme, get_key_labels, get_view_mode, set_view_mode,
+    ACTION_LABELS,
+    COLOR_ACCENT,
+    COLOR_BG,
+    COLOR_DANGER,
+    COLOR_DANGER_DIM,
+    COLOR_GAMEOVER,
+    COLOR_HIGHLIGHT,
+    COLOR_PANEL,
+    COLOR_TEXT,
+    COLOR_TEXT_DIM,
+    COLOR_WIN,
+    WINDOW_HEIGHT,
+    WINDOW_WIDTH,
+    get_key_labels,
+    get_view_mode,
+    set_view_mode,
 )
 
 
@@ -140,11 +152,15 @@ class MenuRenderer:
 
         if len(games) == 0:
             hint = self.font_small.render(
-                "No local games found — go to Settings to sync", True, COLOR_GAMEOVER,
+                "No local games found — go to Settings to sync",
+                True,
+                COLOR_GAMEOVER,
             )
         else:
             hint = self.font_small.render(
-                "Click a game or use Arrow keys + Enter to start", True, COLOR_TEXT_DIM,
+                "Click a game or use Arrow keys + Enter to start",
+                True,
+                COLOR_TEXT_DIM,
             )
         self.screen.blit(hint, (WINDOW_WIDTH // 2 - hint.get_width() // 2, WINDOW_HEIGHT - 85))
 
@@ -170,8 +186,8 @@ class MenuRenderer:
             gid = game.game_id
             completed = level_manager.get_completed_count(gid)
             total = level_manager.get_total_levels(gid)
-            is_last_played = (gid == last_played_id)
-            is_fully_completed = (total > 0 and completed >= total)
+            is_last_played = gid == last_played_id
+            is_fully_completed = total > 0 and completed >= total
 
             rect = pygame.Rect(x, y, cell_w, cell_h)
             self.game_rects.append(rect)
@@ -180,15 +196,21 @@ class MenuRenderer:
             pygame.draw.rect(self.screen, bg_color, rect, border_radius=6)
 
             if is_last_played:
-                pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, (rect.x, rect.y + 4, 3, rect.h - 8), border_radius=1)
+                pygame.draw.rect(
+                    self.screen,
+                    COLOR_HIGHLIGHT,
+                    (rect.x, rect.y + 4, 3, rect.h - 8),
+                    border_radius=1,
+                )
                 pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, rect, 1, border_radius=6)
             else:
                 pygame.draw.rect(self.screen, COLOR_ACCENT, rect, 1, border_radius=6)
 
-            display_id = gid.split('-')[0]
+            display_id = gid.split("-")[0]
             id_text = self.font_cell_id.render(display_id, True, COLOR_TEXT)
-            self.screen.blit(id_text, (rect.x + rect.w // 2 - id_text.get_width() // 2,
-                                       rect.y + 10))
+            self.screen.blit(
+                id_text, (rect.x + rect.w // 2 - id_text.get_width() // 2, rect.y + 10)
+            )
 
             if total > 0:
                 prog = f"{completed}/{total}"
@@ -197,8 +219,9 @@ class MenuRenderer:
             else:
                 prog = "--"
             prog_text = self.font_small.render(prog, True, COLOR_TEXT_DIM)
-            self.screen.blit(prog_text, (rect.x + rect.w // 2 - prog_text.get_width() // 2,
-                                         rect.y + 34))
+            self.screen.blit(
+                prog_text, (rect.x + rect.w // 2 - prog_text.get_width() // 2, rect.y + 34)
+            )
 
             bar_x = rect.x + 10
             bar_y = rect.y + 52
@@ -226,12 +249,12 @@ class MenuRenderer:
                 continue
 
             gid = game.game_id
-            title_str = getattr(game, 'title', gid)
-            tags = ", ".join(getattr(game, 'tags', []))
+            title_str = getattr(game, "title", gid)
+            tags = ", ".join(getattr(game, "tags", []))
             completed = level_manager.get_completed_count(gid)
             total = level_manager.get_total_levels(gid)
-            is_last_played = (gid == last_played_id)
-            is_fully_completed = (total > 0 and completed >= total)
+            is_last_played = gid == last_played_id
+            is_fully_completed = total > 0 and completed >= total
 
             rect = pygame.Rect(margin_x, y, item_w, item_h)
             self.game_rects.append(rect)
@@ -240,7 +263,12 @@ class MenuRenderer:
             pygame.draw.rect(self.screen, bg_color, rect, border_radius=6)
 
             if is_last_played:
-                pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, (rect.x, rect.y + 4, 3, rect.h - 8), border_radius=1)
+                pygame.draw.rect(
+                    self.screen,
+                    COLOR_HIGHLIGHT,
+                    (rect.x, rect.y + 4, 3, rect.h - 8),
+                    border_radius=1,
+                )
                 pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, rect, 1, border_radius=6)
             else:
                 pygame.draw.rect(self.screen, COLOR_ACCENT, rect, 1, border_radius=6)
@@ -298,8 +326,14 @@ class MenuRenderer:
             return
 
         thumb_h = max(20, int(content_h * content_h / total_h))
-        thumb_y = track_y + int((content_h - thumb_h) * (self.scroll_offset / max_scroll)) if max_scroll > 0 else track_y
-        self.scrollbar_thumb_rect = pygame.Rect(track_x + 2, thumb_y, self.SCROLLBAR_W - 4, thumb_h)
+        thumb_y = (
+            track_y + int((content_h - thumb_h) * (self.scroll_offset / max_scroll))
+            if max_scroll > 0
+            else track_y
+        )
+        self.scrollbar_thumb_rect = pygame.Rect(
+            track_x + 2, thumb_y, self.SCROLLBAR_W - 4, thumb_h
+        )
 
         thumb_color = COLOR_HIGHLIGHT if self.scroll_dragging else COLOR_ACCENT
         pygame.draw.rect(self.screen, thumb_color, self.scrollbar_thumb_rect, border_radius=4)
@@ -318,7 +352,7 @@ class MenuRenderer:
         }
 
         for name, rect in self.button_rects.items():
-            is_hovered = (self.button_hover == name)
+            is_hovered = self.button_hover == name
             bg = (60, 60, 80) if is_hovered else COLOR_PANEL
             border = COLOR_HIGHLIGHT if is_hovered else COLOR_ACCENT
             pygame.draw.rect(self.screen, bg, rect, border_radius=4)
@@ -330,8 +364,13 @@ class MenuRenderer:
                 "quit": "[Q] Quit",
             }
             lbl = self.font_small.render(labels[name], True, COLOR_TEXT)
-            self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
-                                   rect.y + rect.h // 2 - lbl.get_height() // 2))
+            self.screen.blit(
+                lbl,
+                (
+                    rect.x + rect.w // 2 - lbl.get_width() // 2,
+                    rect.y + rect.h // 2 - lbl.get_height() // 2,
+                ),
+            )
 
     def handle_main_menu_click(self, pos) -> str | None:
         """Return a command string for a click at pos, e.g. 'game:ABCD' or 'settings'."""
@@ -444,8 +483,9 @@ class MenuRenderer:
         self.scroll_offset = int(click_ratio * max_scroll)
         self.clamp_scroll(games)
 
-    def draw_player_select(self, players, current_player, player_metadata,
-                           input_text="", input_active=False):
+    def draw_player_select(
+        self, players, current_player, player_metadata, input_text="", input_active=False
+    ):
         """Draw the player selection screen with create/delete options."""
         self.screen.fill(COLOR_BG)
         self.button_rects = {}
@@ -459,7 +499,7 @@ class MenuRenderer:
         self.screen.blit(current_text, (60, 65))
 
         y = 100
-        for i, player in enumerate(players):
+        for _i, player in enumerate(players):
             is_current = player == current_player
             rect = pygame.Rect(60, y, WINDOW_WIDTH - 120, 56)
             self.player_rects.append(rect)
@@ -484,7 +524,13 @@ class MenuRenderer:
             last_played = meta.get("last_played")
 
             time_s = time_ms // 1000
-            time_str = f"{time_s // 3600}h{time_s % 3600 // 60}m" if time_s >= 3600 else f"{time_s // 60}m{time_s % 60}s" if time_s >= 60 else f"{time_s}s"
+            time_str = (
+                f"{time_s // 3600}h{time_s % 3600 // 60}m"
+                if time_s >= 3600
+                else f"{time_s // 60}m{time_s % 60}s"
+                if time_s >= 60
+                else f"{time_s}s"
+            )
 
             meta_parts = [f"{levels} levels", f"{games} games", time_str]
             if last_played:
@@ -530,8 +576,13 @@ class MenuRenderer:
         create_rect = pygame.Rect(WINDOW_WIDTH - 110, y, 90, 36)
         pygame.draw.rect(self.screen, COLOR_ACCENT, create_rect, border_radius=4)
         create_lbl = self.font_small.render("Create", True, COLOR_BG)
-        self.screen.blit(create_lbl, (create_rect.x + create_rect.w // 2 - create_lbl.get_width() // 2,
-                                       create_rect.y + create_rect.h // 2 - create_lbl.get_height() // 2))
+        self.screen.blit(
+            create_lbl,
+            (
+                create_rect.x + create_rect.w // 2 - create_lbl.get_width() // 2,
+                create_rect.y + create_rect.h // 2 - create_lbl.get_height() // 2,
+            ),
+        )
         self.button_rects["create"] = create_rect
 
         back_rect = pygame.Rect(WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT - 50, 120, 36)
@@ -539,19 +590,28 @@ class MenuRenderer:
         pygame.draw.rect(self.screen, COLOR_PANEL, back_rect, border_radius=4)
         pygame.draw.rect(self.screen, COLOR_ACCENT, back_rect, 1, border_radius=4)
         lbl = self.font_small.render("[ESC] Back", True, COLOR_TEXT)
-        self.screen.blit(lbl, (back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
-                               back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
+        self.screen.blit(
+            lbl,
+            (
+                back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
+                back_rect.y + back_rect.h // 2 - lbl.get_height() // 2,
+            ),
+        )
 
     def _draw_trash_icon(self, rect):
         cx, cy = rect.centerx, rect.centery
         s = 5
         pygame.draw.rect(self.screen, COLOR_TEXT_DIM, (cx - s, cy - s + 2, s * 2, s * 2 + 1), 1)
-        pygame.draw.line(self.screen, COLOR_TEXT_DIM, (cx - s - 1, cy - s + 2), (cx + s + 1, cy - s + 2))
+        pygame.draw.line(
+            self.screen, COLOR_TEXT_DIM, (cx - s - 1, cy - s + 2), (cx + s + 1, cy - s + 2)
+        )
         pygame.draw.line(self.screen, COLOR_TEXT_DIM, (cx - 2, cy - s), (cx - 2, cy - s + 2))
         pygame.draw.line(self.screen, COLOR_TEXT_DIM, (cx + 2, cy - s), (cx + 2, cy - s + 2))
         pygame.draw.line(self.screen, COLOR_TEXT_DIM, (cx - 3, cy - s + 1), (cx + 3, cy - s + 1))
 
-    def draw_delete_confirm(self, player_name, player_metadata, confirm_text="", confirm_active=False):
+    def draw_delete_confirm(
+        self, player_name, player_metadata, confirm_text="", confirm_active=False
+    ):
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 160))
         self.screen.blit(overlay, (0, 0))
@@ -560,7 +620,9 @@ class MenuRenderer:
         box_x = (WINDOW_WIDTH - box_w) // 2
         box_y = (WINDOW_HEIGHT - box_h) // 2
         pygame.draw.rect(self.screen, (40, 25, 25), (box_x, box_y, box_w, box_h), border_radius=8)
-        pygame.draw.rect(self.screen, COLOR_DANGER, (box_x, box_y, box_w, box_h), 2, border_radius=8)
+        pygame.draw.rect(
+            self.screen, COLOR_DANGER, (box_x, box_y, box_w, box_h), 2, border_radius=8
+        )
 
         title = self.font_large.render("Delete Player", True, COLOR_DANGER)
         self.screen.blit(title, (box_x + 20, box_y + 16))
@@ -573,7 +635,13 @@ class MenuRenderer:
         games = meta.get("total_games_played", 0)
         time_ms = meta.get("total_time_ms", 0)
         time_s = time_ms // 1000
-        time_str = f"{time_s // 3600}h{time_s % 3600 // 60}m" if time_s >= 3600 else f"{time_s // 60}m{time_s % 60}s" if time_s >= 60 else f"{time_s}s"
+        time_str = (
+            f"{time_s // 3600}h{time_s % 3600 // 60}m"
+            if time_s >= 3600
+            else f"{time_s // 60}m{time_s % 60}s"
+            if time_s >= 60
+            else f"{time_s}s"
+        )
 
         info_lines = [
             f"Player: {player_name}",
@@ -614,22 +682,34 @@ class MenuRenderer:
         pygame.draw.rect(self.screen, COLOR_PANEL, cancel_rect, border_radius=4)
         pygame.draw.rect(self.screen, COLOR_ACCENT, cancel_rect, 1, border_radius=4)
         cancel_lbl = self.font_small.render("Cancel", True, COLOR_TEXT)
-        self.screen.blit(cancel_lbl, (cancel_rect.x + cancel_rect.w // 2 - cancel_lbl.get_width() // 2,
-                                       cancel_rect.y + cancel_rect.h // 2 - cancel_lbl.get_height() // 2))
+        self.screen.blit(
+            cancel_lbl,
+            (
+                cancel_rect.x + cancel_rect.w // 2 - cancel_lbl.get_width() // 2,
+                cancel_rect.y + cancel_rect.h // 2 - cancel_lbl.get_height() // 2,
+            ),
+        )
         self.button_rects["cancel_delete"] = cancel_rect
 
         confirm_enabled = confirm_text == player_name
         confirm_rect = pygame.Rect(box_x + box_w - 130, iy, 110, 30)
         btn_color = COLOR_DANGER if confirm_enabled else COLOR_DANGER_DIM
         pygame.draw.rect(self.screen, btn_color, confirm_rect, border_radius=4)
-        confirm_lbl = self.font_small.render("Delete", True, COLOR_BG if confirm_enabled else COLOR_TEXT_DIM)
-        self.screen.blit(confirm_lbl, (confirm_rect.x + confirm_rect.w // 2 - confirm_lbl.get_width() // 2,
-                                        confirm_rect.y + confirm_rect.h // 2 - confirm_lbl.get_height() // 2))
+        confirm_lbl = self.font_small.render(
+            "Delete", True, COLOR_BG if confirm_enabled else COLOR_TEXT_DIM
+        )
+        self.screen.blit(
+            confirm_lbl,
+            (
+                confirm_rect.x + confirm_rect.w // 2 - confirm_lbl.get_width() // 2,
+                confirm_rect.y + confirm_rect.h // 2 - confirm_lbl.get_height() // 2,
+            ),
+        )
         self.button_rects["confirm_delete"] = confirm_rect
 
     def handle_player_click(self, pos, players) -> str | None:
         """Return a command string for a click in the player select screen."""
-        if hasattr(self, 'delete_rects'):
+        if hasattr(self, "delete_rects"):
             for i, rect in enumerate(self.delete_rects):
                 if rect and rect.collidepoint(pos) and i < len(players):
                     return f"delete:{players[i]}"
@@ -652,7 +732,7 @@ class MenuRenderer:
         y = 70
         for game in games:
             gid = game.game_id
-            title_str = getattr(game, 'title', gid)
+            title_str = getattr(game, "title", gid)
             summary = stats_manager.get_game_summary(gid)
             completed = level_manager.get_completed_count(gid)
             total = level_manager.get_total_levels(gid)
@@ -664,9 +744,11 @@ class MenuRenderer:
             name = self.font_medium.render(f"{gid} - {title_str}", True, COLOR_TEXT)
             self.screen.blit(name, (panel_rect.x + 12, panel_rect.y + 8))
 
-            info_parts = [f"Attempts: {summary['total_attempts']}",
-                          f"Wins: {summary['total_wins']}",
-                          f"Levels: {completed}"]
+            info_parts = [
+                f"Attempts: {summary['total_attempts']}",
+                f"Wins: {summary['total_wins']}",
+                f"Levels: {completed}",
+            ]
             if total > 0:
                 info_parts[-1] += f"/{total}"
             if summary.get("best_steps"):
@@ -681,8 +763,13 @@ class MenuRenderer:
         pygame.draw.rect(self.screen, COLOR_PANEL, back_rect, border_radius=4)
         pygame.draw.rect(self.screen, COLOR_ACCENT, back_rect, 1, border_radius=4)
         lbl = self.font_small.render("[ESC] Back", True, COLOR_TEXT)
-        self.screen.blit(lbl, (back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
-                               back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
+        self.screen.blit(
+            lbl,
+            (
+                back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
+                back_rect.y + back_rect.h // 2 - lbl.get_height() // 2,
+            ),
+        )
 
     def draw_settings(self, keymap_scheme, sync_mode="conservative", show_sync_button=False):
         """Draw the settings screen with keymap, sync, and view mode options."""
@@ -704,7 +791,7 @@ class MenuRenderer:
         self.button_rects = {"wasd": wasd_rect, "arrows": arrow_rect}
 
         for name, rect in self.button_rects.items():
-            is_selected = (name == keymap_scheme)
+            is_selected = name == keymap_scheme
             bg = COLOR_ACCENT if is_selected else COLOR_PANEL
             border = COLOR_HIGHLIGHT if is_selected else COLOR_ACCENT
             pygame.draw.rect(self.screen, bg, rect, border_radius=4)
@@ -712,8 +799,13 @@ class MenuRenderer:
             labels = {"wasd": "WASD + Space", "arrows": "Arrows + F"}
             color = COLOR_BG if is_selected else COLOR_TEXT
             lbl = self.font_medium.render(labels[name], True, color)
-            self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
-                                   rect.y + rect.h // 2 - lbl.get_height() // 2))
+            self.screen.blit(
+                lbl,
+                (
+                    rect.x + rect.w // 2 - lbl.get_width() // 2,
+                    rect.y + rect.h // 2 - lbl.get_height() // 2,
+                ),
+            )
 
         y += 140
         pygame.draw.line(self.screen, COLOR_TEXT_DIM, (60, y), (WINDOW_WIDTH - 60, y))
@@ -721,7 +813,9 @@ class MenuRenderer:
 
         sync_label = self.font_medium.render("Game Sync Mode:", True, COLOR_TEXT)
         self.screen.blit(sync_label, (60, y))
-        sync_display = "Manual sync only" if sync_mode == "conservative" else "Auto sync on startup"
+        sync_display = (
+            "Manual sync only" if sync_mode == "conservative" else "Auto sync on startup"
+        )
         sync_value = self.font_large.render(sync_display, True, COLOR_HIGHLIGHT)
         self.screen.blit(sync_value, (60, y + 28))
 
@@ -731,7 +825,7 @@ class MenuRenderer:
         self.button_rects["auto"] = auto_rect
 
         for name, rect in [("conservative", conservative_rect), ("auto", auto_rect)]:
-            is_selected = (name == sync_mode)
+            is_selected = name == sync_mode
             bg = COLOR_ACCENT if is_selected else COLOR_PANEL
             border = COLOR_HIGHLIGHT if is_selected else COLOR_ACCENT
             pygame.draw.rect(self.screen, bg, rect, border_radius=4)
@@ -739,20 +833,30 @@ class MenuRenderer:
             sync_labels = {"conservative": "Manual [D] Sync", "auto": "Auto on Startup"}
             color = COLOR_BG if is_selected else COLOR_TEXT
             lbl = self.font_medium.render(sync_labels[name], True, color)
-            self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
-                                   rect.y + rect.h // 2 - lbl.get_height() // 2))
+            self.screen.blit(
+                lbl,
+                (
+                    rect.x + rect.w // 2 - lbl.get_width() // 2,
+                    rect.y + rect.h // 2 - lbl.get_height() // 2,
+                ),
+            )
 
         sync_now_rect = pygame.Rect(60, y + 120, 200, 36)
         if show_sync_button:
             self.button_rects["download"] = sync_now_rect
-            is_sync_hover = (self.button_hover == "download")
+            is_sync_hover = self.button_hover == "download"
             sync_bg = (60, 60, 80) if is_sync_hover else COLOR_PANEL
             sync_border = COLOR_HIGHLIGHT if is_sync_hover else COLOR_ACCENT
             pygame.draw.rect(self.screen, sync_bg, sync_now_rect, border_radius=4)
             pygame.draw.rect(self.screen, sync_border, sync_now_rect, 1, border_radius=4)
             sync_lbl = self.font_medium.render("[D] Sync Now", True, COLOR_TEXT)
-            self.screen.blit(sync_lbl, (sync_now_rect.x + sync_now_rect.w // 2 - sync_lbl.get_width() // 2,
-                                        sync_now_rect.y + sync_now_rect.h // 2 - sync_lbl.get_height() // 2))
+            self.screen.blit(
+                sync_lbl,
+                (
+                    sync_now_rect.x + sync_now_rect.w // 2 - sync_lbl.get_width() // 2,
+                    sync_now_rect.y + sync_now_rect.h // 2 - sync_lbl.get_height() // 2,
+                ),
+            )
 
         y += 170
         pygame.draw.line(self.screen, COLOR_TEXT_DIM, (60, y), (WINDOW_WIDTH - 60, y))
@@ -764,9 +868,17 @@ class MenuRenderer:
         y += 28
 
         from arcengine import GameAction
-        for action in [GameAction.ACTION1, GameAction.ACTION2, GameAction.ACTION3,
-                       GameAction.ACTION4, GameAction.ACTION5, GameAction.ACTION6,
-                       GameAction.ACTION7, GameAction.RESET]:
+
+        for action in [
+            GameAction.ACTION1,
+            GameAction.ACTION2,
+            GameAction.ACTION3,
+            GameAction.ACTION4,
+            GameAction.ACTION5,
+            GameAction.ACTION6,
+            GameAction.ACTION7,
+            GameAction.RESET,
+        ]:
             key_str = key_labels.get(action, "?")
             action_str = ACTION_LABELS.get(action, action.name)
             line = self.font_small.render(f"  [{key_str}]  {action_str}", True, COLOR_TEXT)
@@ -778,8 +890,13 @@ class MenuRenderer:
         pygame.draw.rect(self.screen, COLOR_PANEL, back_rect, border_radius=4)
         pygame.draw.rect(self.screen, COLOR_ACCENT, back_rect, 1, border_radius=4)
         lbl = self.font_small.render("[ESC] Back", True, COLOR_TEXT)
-        self.screen.blit(lbl, (back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
-                               back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
+        self.screen.blit(
+            lbl,
+            (
+                back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
+                back_rect.y + back_rect.h // 2 - lbl.get_height() // 2,
+            ),
+        )
 
     def draw_resume_prompt(self, game_id, completed, total, next_level):
         self.screen.fill(COLOR_BG)
@@ -793,14 +910,18 @@ class MenuRenderer:
         box_x = (WINDOW_WIDTH - box_w) // 2
         box_y = (WINDOW_HEIGHT - box_h) // 2
         pygame.draw.rect(self.screen, COLOR_PANEL, (box_x, box_y, box_w, box_h), border_radius=8)
-        pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, (box_x, box_y, box_w, box_h), 2, border_radius=8)
+        pygame.draw.rect(
+            self.screen, COLOR_HIGHLIGHT, (box_x, box_y, box_w, box_h), 2, border_radius=8
+        )
 
         title = self.font_large.render("Save Data Found", True, COLOR_HIGHLIGHT)
         self.screen.blit(title, (box_x + 20, box_y + 15))
 
         prog = f"{completed}/{total}" if total > 0 else f"{completed} done"
         info = self.font_medium.render(
-            f"{game_id}: {prog}  Next: Level {next_level + 1}", True, COLOR_TEXT,
+            f"{game_id}: {prog}  Next: Level {next_level + 1}",
+            True,
+            COLOR_TEXT,
         )
         self.screen.blit(info, (box_x + 20, box_y + 55))
 
@@ -815,11 +936,17 @@ class MenuRenderer:
             pygame.draw.rect(self.screen, border_color, rect, 1, border_radius=4)
             labels = {"continue": "[C] Continue", "new": "[N] New Game", "back": "[Q] Back"}
             lbl = self.font_small.render(labels[name], True, COLOR_TEXT)
-            self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
-                                   rect.y + rect.h // 2 - lbl.get_height() // 2))
+            self.screen.blit(
+                lbl,
+                (
+                    rect.x + rect.w // 2 - lbl.get_width() // 2,
+                    rect.y + rect.h // 2 - lbl.get_height() // 2,
+                ),
+            )
 
-    def draw_completed_prompt(self, game_id, total, current_level, has_playthrough,
-                              jump_available=True):
+    def draw_completed_prompt(
+        self, game_id, total, current_level, has_playthrough, jump_available=True
+    ):
         self.screen.fill(COLOR_BG)
         self.button_rects = {}
 
@@ -840,13 +967,17 @@ class MenuRenderer:
         self._draw_checkmark(box_x + box_w - 35, box_y + 14, 18)
 
         info = self.font_medium.render(
-            f"{game_id}: {total}/{total}", True, COLOR_TEXT,
+            f"{game_id}: {total}/{total}",
+            True,
+            COLOR_TEXT,
         )
         self.screen.blit(info, (box_x + 20, box_y + 50))
 
         if has_playthrough and current_level is not None:
             pt_info = self.font_medium.render(
-                f"New playthrough: Level {current_level + 1}", True, COLOR_HIGHLIGHT,
+                f"New playthrough: Level {current_level + 1}",
+                True,
+                COLOR_HIGHLIGHT,
             )
             self.screen.blit(pt_info, (box_x + 20, box_y + 72))
 
@@ -886,8 +1017,13 @@ class MenuRenderer:
                 "back": "[Q] Back",
             }
             lbl = self.font_small.render(labels[name], True, COLOR_TEXT)
-            self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
-                                   rect.y + rect.h // 2 - lbl.get_height() // 2))
+            self.screen.blit(
+                lbl,
+                (
+                    rect.x + rect.w // 2 - lbl.get_width() // 2,
+                    rect.y + rect.h // 2 - lbl.get_height() // 2,
+                ),
+            )
 
     def draw_level_select(self, game_id, total_levels, level_manager):
         """Draw the level selection screen for a specific game."""
@@ -919,8 +1055,8 @@ class MenuRenderer:
 
             info = level_manager.get_level_info(game_id, i)
             is_completed = info["completed"]
-            is_current = (current_level is not None and i == current_level)
-            is_hover = (i == self.level_hover)
+            is_current = current_level is not None and i == current_level
+            is_hover = i == self.level_hover
 
             if is_current:
                 bg = (50, 55, 30)
@@ -931,25 +1067,30 @@ class MenuRenderer:
 
             pygame.draw.rect(self.screen, bg, rect, border_radius=6)
 
-            border = COLOR_HIGHLIGHT if is_current else (COLOR_WIN if is_completed else COLOR_ACCENT)
+            border = (
+                COLOR_HIGHLIGHT if is_current else (COLOR_WIN if is_completed else COLOR_ACCENT)
+            )
             pygame.draw.rect(self.screen, border, rect, 1, border_radius=6)
 
             num_text = self.font_cell_id.render(f"{i + 1}", True, COLOR_TEXT)
-            self.screen.blit(num_text, (rect.x + rect.w // 2 - num_text.get_width() // 2,
-                                        rect.y + 8))
+            self.screen.blit(
+                num_text, (rect.x + rect.w // 2 - num_text.get_width() // 2, rect.y + 8)
+            )
 
             if is_completed:
                 self._draw_checkmark(rect.right - 16, rect.y + 4, 10)
                 if info.get("best_steps") is not None:
                     bs_text = self.font_small.render(
-                        f"{info['best_steps']}s", True, COLOR_TEXT_DIM,
+                        f"{info['best_steps']}s",
+                        True,
+                        COLOR_TEXT_DIM,
                     )
-                    self.screen.blit(bs_text, (rect.x + rect.w // 2 - bs_text.get_width() // 2,
-                                               rect.y + 34))
+                    self.screen.blit(
+                        bs_text, (rect.x + rect.w // 2 - bs_text.get_width() // 2, rect.y + 34)
+                    )
             else:
                 dash = self.font_small.render("--", True, COLOR_TEXT_DIM)
-                self.screen.blit(dash, (rect.x + rect.w // 2 - dash.get_width() // 2,
-                                        rect.y + 34))
+                self.screen.blit(dash, (rect.x + rect.w // 2 - dash.get_width() // 2, rect.y + 34))
 
         input_y = WINDOW_HEIGHT - 90
         input_label = self.font_medium.render("Go to level:", True, COLOR_TEXT)
@@ -969,8 +1110,13 @@ class MenuRenderer:
         go_rect = pygame.Rect(310, input_y - 2, 60, 30)
         pygame.draw.rect(self.screen, COLOR_ACCENT, go_rect, border_radius=4)
         go_lbl = self.font_small.render("Go", True, COLOR_BG)
-        self.screen.blit(go_lbl, (go_rect.x + go_rect.w // 2 - go_lbl.get_width() // 2,
-                                  go_rect.y + go_rect.h // 2 - go_lbl.get_height() // 2))
+        self.screen.blit(
+            go_lbl,
+            (
+                go_rect.x + go_rect.w // 2 - go_lbl.get_width() // 2,
+                go_rect.y + go_rect.h // 2 - go_lbl.get_height() // 2,
+            ),
+        )
         self.button_rects["go"] = go_rect
 
         back_rect = pygame.Rect(WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT - 45, 120, 36)
@@ -978,8 +1124,13 @@ class MenuRenderer:
         pygame.draw.rect(self.screen, COLOR_PANEL, back_rect, border_radius=4)
         pygame.draw.rect(self.screen, COLOR_ACCENT, back_rect, 1, border_radius=4)
         lbl = self.font_small.render("[ESC] Back", True, COLOR_TEXT)
-        self.screen.blit(lbl, (back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
-                               back_rect.y + back_rect.h // 2 - lbl.get_height() // 2))
+        self.screen.blit(
+            lbl,
+            (
+                back_rect.x + back_rect.w // 2 - lbl.get_width() // 2,
+                back_rect.y + back_rect.h // 2 - lbl.get_height() // 2,
+            ),
+        )
 
     def handle_level_select_click(self, pos) -> str | None:
         """Return a command string like 'level:3' or 'back' for a click in level select."""
@@ -1021,7 +1172,9 @@ class MenuRenderer:
         self.screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 60))
 
         progress_text = self.font_medium.render(
-            f"{current}/{total}  {game_id}  {status}", True, COLOR_TEXT,
+            f"{current}/{total}  {game_id}  {status}",
+            True,
+            COLOR_TEXT,
         )
         self.screen.blit(progress_text, (WINDOW_WIDTH // 2 - progress_text.get_width() // 2, 120))
 
@@ -1032,14 +1185,20 @@ class MenuRenderer:
         pygame.draw.rect(self.screen, (60, 60, 60), (bar_x, bar_y, bar_w, bar_h), border_radius=6)
         if total > 0:
             fill_w = max(3, int(bar_w * current / total))
-            pygame.draw.rect(self.screen, COLOR_WIN, (bar_x, bar_y, fill_w, bar_h), border_radius=6)
+            pygame.draw.rect(
+                self.screen, COLOR_WIN, (bar_x, bar_y, fill_w, bar_h), border_radius=6
+            )
 
         pct = self.font_medium.render(
-            f"{int(current / total * 100)}%" if total > 0 else "0%", True, COLOR_TEXT,
+            f"{int(current / total * 100)}%" if total > 0 else "0%",
+            True,
+            COLOR_TEXT,
         )
         self.screen.blit(pct, (WINDOW_WIDTH // 2 - pct.get_width() // 2, 200))
 
-        hint = self.font_small.render("Please wait, this only needs to be done once.", True, COLOR_TEXT_DIM)
+        hint = self.font_small.render(
+            "Please wait, this only needs to be done once.", True, COLOR_TEXT_DIM
+        )
         self.screen.blit(hint, (WINDOW_WIDTH // 2 - hint.get_width() // 2, 260))
 
     def draw_sync_complete(self, result):
@@ -1064,18 +1223,24 @@ class MenuRenderer:
 
         y += 20
         safety_text = self.font_medium.render(
-            "Games are now cached locally.", True, COLOR_HIGHLIGHT,
+            "Games are now cached locally.",
+            True,
+            COLOR_HIGHLIGHT,
         )
         self.screen.blit(safety_text, (WINDOW_WIDTH // 2 - safety_text.get_width() // 2, y))
         y += 28
 
         hint1 = self.font_small.render(
-            "You can safely delete ARC_API_KEY from .env if you", True, COLOR_TEXT_DIM,
+            "You can safely delete ARC_API_KEY from .env if you",
+            True,
+            COLOR_TEXT_DIM,
         )
         self.screen.blit(hint1, (WINDOW_WIDTH // 2 - hint1.get_width() // 2, y))
         y += 20
         hint2 = self.font_small.render(
-            "only play as human — this prevents any data upload.", True, COLOR_TEXT_DIM,
+            "only play as human — this prevents any data upload.",
+            True,
+            COLOR_TEXT_DIM,
         )
         self.screen.blit(hint2, (WINDOW_WIDTH // 2 - hint2.get_width() // 2, y))
 
@@ -1083,8 +1248,13 @@ class MenuRenderer:
         self.button_rects["ok"] = ok_rect
         pygame.draw.rect(self.screen, COLOR_ACCENT, ok_rect, border_radius=4)
         lbl = self.font_small.render("OK", True, COLOR_BG)
-        self.screen.blit(lbl, (ok_rect.x + ok_rect.w // 2 - lbl.get_width() // 2,
-                               ok_rect.y + ok_rect.h // 2 - lbl.get_height() // 2))
+        self.screen.blit(
+            lbl,
+            (
+                ok_rect.x + ok_rect.w // 2 - lbl.get_width() // 2,
+                ok_rect.y + ok_rect.h // 2 - lbl.get_height() // 2,
+            ),
+        )
 
     def handle_button_click(self, pos) -> str | None:
         """Return the action string of a generic button at pos, or None."""

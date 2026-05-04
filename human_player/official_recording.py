@@ -1,11 +1,11 @@
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from arcengine import GameAction
 
-from human_player.mode import get_player_mode, get_agent_type, PlayerMode
+from human_player.mode import PlayerMode, get_agent_type, get_player_mode
 from human_player.player_manager import PlayerManager
 
 ACTION_ID_MAP = {
@@ -49,8 +49,7 @@ class OfficialRecordingManager:
         """Return True if a recording session is currently active."""
         return self._file is not None
 
-    def start_session(self, game_id: str, win_levels: int,
-                      levels_at_start: int = 0) -> str:
+    def start_session(self, game_id: str, win_levels: int, levels_at_start: int = 0) -> str:
         """Begin a new recording session and return its GUID.
 
         Args:
@@ -71,7 +70,7 @@ class OfficialRecordingManager:
         self._actions_by_level = []
         self._reset_count = 0
         self._is_full_reset = levels_at_start == 0
-        self._start_time = datetime.now(timezone.utc)
+        self._start_time = datetime.now(UTC)
 
         recordings_dir = self._pm.get_recordings_dir(game_id)
         filename = f"{game_id}.{self._guid}.recording.jsonl"
@@ -84,9 +83,14 @@ class OfficialRecordingManager:
 
         return self._guid
 
-    def record_step(self, action: GameAction, action_data: dict | None,
-                    obs, available_actions: list,
-                    reasoning: dict | str | None = None) -> None:
+    def record_step(
+        self,
+        action: GameAction,
+        action_data: dict | None,
+        obs,
+        available_actions: list,
+        reasoning: dict | str | None = None,
+    ) -> None:
         """Append one step record to the current session file.
 
         Args:
@@ -115,11 +119,9 @@ class OfficialRecordingManager:
         }
 
         frame = self._extract_frame(obs)
-        state = obs.state.name if obs and hasattr(obs, 'state') else "UNKNOWN"
-        levels_completed = getattr(
-            obs, 'levels_completed', self._prev_levels_completed) or 0
-        win_levels = getattr(
-            obs, 'win_levels', self._win_levels) or self._win_levels
+        state = obs.state.name if obs and hasattr(obs, "state") else "UNKNOWN"
+        levels_completed = getattr(obs, "levels_completed", self._prev_levels_completed) or 0
+        win_levels = getattr(obs, "win_levels", self._win_levels) or self._win_levels
 
         if levels_completed > self._prev_levels_completed:
             for lvl in range(self._prev_levels_completed, levels_completed):
@@ -156,7 +158,7 @@ class OfficialRecordingManager:
         }
 
         record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "data": data,
         }
 
@@ -200,7 +202,7 @@ class OfficialRecordingManager:
         }
 
         record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "data": summary,
         }
 
@@ -227,7 +229,7 @@ class OfficialRecordingManager:
         index_path = os.path.join(recordings_dir, "index.json")
         if os.path.exists(index_path):
             try:
-                with open(index_path, "r", encoding="utf-8") as f:
+                with open(index_path, encoding="utf-8") as f:
                     return json.load(f)
             except (json.JSONDecodeError, OSError) as e:
                 print(f"[OfficialRecording] Failed to load index: {e}")
@@ -265,13 +267,14 @@ class OfficialRecordingManager:
     def _extract_frame(self, obs) -> list:
         if obs is None:
             return []
-        frame = getattr(obs, 'frame', None)
+        frame = getattr(obs, "frame", None)
         if frame is None:
             return []
         return self._to_json_serializable(frame)
 
     def _to_json_serializable(self, obj):
         import numpy as np
+
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         if isinstance(obj, list):
@@ -296,7 +299,7 @@ class OfficialRecordingManager:
             "guid": self._guid,
             "filename": f"{game_id}.{self._guid}.recording.jsonl",
             "started_at": self._start_time.isoformat() if self._start_time else None,
-            "ended_at": datetime.now(timezone.utc).isoformat(),
+            "ended_at": datetime.now(UTC).isoformat(),
             "total_actions": self._step_count,
             "levels_completed": self._prev_levels_completed,
             "final_state": final_state,

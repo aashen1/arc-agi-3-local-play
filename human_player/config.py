@@ -120,7 +120,7 @@ ARROW_KEY_LABELS = {
 def _load_user_config() -> dict:
     if os.path.exists(USER_CONFIG_FILE):
         try:
-            with open(USER_CONFIG_FILE, "r", encoding="utf-8") as f:
+            with open(USER_CONFIG_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JsonDecodeError, OSError):
             pass

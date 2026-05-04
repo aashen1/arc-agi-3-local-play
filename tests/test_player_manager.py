@@ -1,4 +1,3 @@
-import json
 import os
 import tempfile
 
@@ -15,8 +14,12 @@ def tmp_dir():
 
 @pytest.fixture
 def pm(tmp_dir, monkeypatch):
-    monkeypatch.setattr("human_player.player_manager.PLAYERS_DIR", os.path.join(tmp_dir, "players"))
-    monkeypatch.setattr("human_player.player_manager._load_user_config", lambda: {"current_player": "default"})
+    monkeypatch.setattr(
+        "human_player.player_manager.PLAYERS_DIR", os.path.join(tmp_dir, "players")
+    )
+    monkeypatch.setattr(
+        "human_player.player_manager._load_user_config", lambda: {"current_player": "default"}
+    )
     monkeypatch.setattr("human_player.player_manager._save_user_config", lambda cfg: None)
     return PlayerManager()
 

@@ -1,15 +1,32 @@
 import numpy as np
 import pygame
-
 from arcengine import GameAction
 
 from human_player.config import (
-    CELL_SIZE, GRID_SIZE, GRID_PIXEL, GRID_OFFSET_X, GRID_OFFSET_Y,
-    HUD_TOP_H, HUD_BOTTOM_H, PANEL_WIDTH, WINDOW_WIDTH, WINDOW_HEIGHT,
-    ARC_PALETTE, COLOR_BG, COLOR_PANEL, COLOR_TEXT, COLOR_TEXT_DIM,
-    COLOR_HIGHLIGHT, COLOR_WIN, COLOR_GAMEOVER, COLOR_ACCENT,
-    COLOR_BUTTON_BG, COLOR_BUTTON_HOVER, COLOR_BUTTON_BORDER,
-    ACTION_LABELS, get_key_labels,
+    ACTION_LABELS,
+    ARC_PALETTE,
+    CELL_SIZE,
+    COLOR_ACCENT,
+    COLOR_BG,
+    COLOR_BUTTON_BG,
+    COLOR_BUTTON_BORDER,
+    COLOR_BUTTON_HOVER,
+    COLOR_GAMEOVER,
+    COLOR_HIGHLIGHT,
+    COLOR_PANEL,
+    COLOR_TEXT,
+    COLOR_TEXT_DIM,
+    COLOR_WIN,
+    GRID_OFFSET_X,
+    GRID_OFFSET_Y,
+    GRID_PIXEL,
+    GRID_SIZE,
+    HUD_BOTTOM_H,
+    HUD_TOP_H,
+    PANEL_WIDTH,
+    WINDOW_HEIGHT,
+    WINDOW_WIDTH,
+    get_key_labels,
 )
 
 
@@ -62,15 +79,23 @@ class Renderer:
                 return action_id
         return None
 
-    def draw_frame(self, frame, mouse_grid_pos, step_count, elapsed_ms,
-                   levels_completed, max_levels, available_actions,
-                   keymap_scheme, game_id):
+    def draw_frame(
+        self,
+        frame,
+        mouse_grid_pos,
+        step_count,
+        elapsed_ms,
+        levels_completed,
+        max_levels,
+        available_actions,
+        keymap_scheme,
+        game_id,
+    ):
         """Draw the complete game frame: grid, HUD, panel, and action buttons."""
         self.screen.fill(COLOR_BG)
         self._draw_grid(frame, mouse_grid_pos)
         self._draw_hud_top(game_id, levels_completed, max_levels, keymap_scheme)
-        self._draw_panel(step_count, elapsed_ms, available_actions,
-                         keymap_scheme, mouse_grid_pos)
+        self._draw_panel(step_count, elapsed_ms, available_actions, keymap_scheme, mouse_grid_pos)
         self._draw_hud_bottom(available_actions, mouse_grid_pos)
 
     def _draw_grid(self, frame, mouse_grid_pos):
@@ -91,7 +116,8 @@ class Renderer:
                 else:
                     color = (255, 0, 255)
                 pygame.draw.rect(
-                    self._grid_surface, color,
+                    self._grid_surface,
+                    color,
                     (x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE),
                 )
 
@@ -102,7 +128,8 @@ class Renderer:
                 (gx * CELL_SIZE, gy * CELL_SIZE),
             )
             pygame.draw.rect(
-                self._grid_surface, COLOR_HIGHLIGHT,
+                self._grid_surface,
+                COLOR_HIGHLIGHT,
                 (gx * CELL_SIZE, gy * CELL_SIZE, CELL_SIZE, CELL_SIZE),
                 1,
             )
@@ -122,12 +149,15 @@ class Renderer:
         if max_levels > 0:
             level_text += f"/{max_levels}"
         info = self.font_medium.render(
-            f"{game_id}  |  {level_text}  |  {scheme_name}", True, COLOR_TEXT,
+            f"{game_id}  |  {level_text}  |  {scheme_name}",
+            True,
+            COLOR_TEXT,
         )
         self.screen.blit(info, (160, 12))
 
-    def _draw_panel(self, step_count, elapsed_ms, available_actions,
-                    keymap_scheme, mouse_grid_pos):
+    def _draw_panel(
+        self, step_count, elapsed_ms, available_actions, keymap_scheme, mouse_grid_pos
+    ):
         panel_x = GRID_PIXEL
         panel_rect = pygame.Rect(panel_x, HUD_TOP_H, PANEL_WIDTH, GRID_PIXEL)
         pygame.draw.rect(self.screen, COLOR_PANEL, panel_rect)
@@ -153,9 +183,16 @@ class Renderer:
         y += 24
 
         key_labels = get_key_labels()
-        for action in [GameAction.ACTION1, GameAction.ACTION2, GameAction.ACTION3,
-                       GameAction.ACTION4, GameAction.ACTION5, GameAction.ACTION6,
-                       GameAction.ACTION7, GameAction.RESET]:
+        for action in [
+            GameAction.ACTION1,
+            GameAction.ACTION2,
+            GameAction.ACTION3,
+            GameAction.ACTION4,
+            GameAction.ACTION5,
+            GameAction.ACTION6,
+            GameAction.ACTION7,
+            GameAction.RESET,
+        ]:
             is_available = action in available_actions
             key_str = key_labels.get(action, "?")
             action_str = ACTION_LABELS.get(action, action.name)
@@ -203,7 +240,7 @@ class Renderer:
             button_w = text_width + button_padding * 2
             button_rect = pygame.Rect(x, button_y, button_w, button_h)
 
-            is_hovered = (self._hovered_button == action_id and enabled)
+            is_hovered = self._hovered_button == action_id and enabled
             color = COLOR_BUTTON_HOVER if is_hovered else COLOR_BUTTON_BG
             if not enabled:
                 color = (50, 50, 55)
@@ -237,8 +274,7 @@ class Renderer:
         self.screen.blit(lbl, (x, y))
         self.screen.blit(val, (x + 70, y - 3))
 
-    def draw_overlay_win(self, level_index, steps, time_ms,
-                         best_steps, best_time_ms):
+    def draw_overlay_win(self, level_index, steps, time_ms, best_steps, best_time_ms):
         """Draw the level-complete overlay with stats and a Continue button."""
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 140))
@@ -254,7 +290,9 @@ class Renderer:
         self.screen.blit(title, (box_x + 20, box_y + 20))
 
         elapsed_s = time_ms // 1000
-        info = self.font_medium.render(f"Steps: {steps}  Time: {elapsed_s // 60:02d}:{elapsed_s % 60:02d}", True, COLOR_TEXT)
+        info = self.font_medium.render(
+            f"Steps: {steps}  Time: {elapsed_s // 60:02d}:{elapsed_s % 60:02d}", True, COLOR_TEXT
+        )
         self.screen.blit(info, (box_x + 20, box_y + 60))
 
         if best_steps and steps <= best_steps:
@@ -264,7 +302,9 @@ class Renderer:
             best = self.font_small.render(f"Best: {best_steps} steps", True, COLOR_TEXT_DIM)
             self.screen.blit(best, (box_x + 20, box_y + 92))
 
-        hint = self.font_small.render("Press any key or click to continue...", True, COLOR_TEXT_DIM)
+        hint = self.font_small.render(
+            "Press any key or click to continue...", True, COLOR_TEXT_DIM
+        )
         self.screen.blit(hint, (box_x + 20, box_y + box_h - 30))
 
     def draw_overlay_game_over(self, step_count):
@@ -277,7 +317,9 @@ class Renderer:
         box_x = (WINDOW_WIDTH - box_w) // 2
         box_y = (WINDOW_HEIGHT - box_h) // 2
         pygame.draw.rect(self.screen, (50, 30, 30), (box_x, box_y, box_w, box_h), border_radius=8)
-        pygame.draw.rect(self.screen, COLOR_GAMEOVER, (box_x, box_y, box_w, box_h), 2, border_radius=8)
+        pygame.draw.rect(
+            self.screen, COLOR_GAMEOVER, (box_x, box_y, box_w, box_h), 2, border_radius=8
+        )
 
         title = self.font_large.render("GAME OVER", True, COLOR_GAMEOVER)
         self.screen.blit(title, (box_x + 20, box_y + 20))
@@ -321,7 +363,9 @@ class Renderer:
         box_x = (WINDOW_WIDTH - box_w) // 2
         box_y = (WINDOW_HEIGHT - box_h) // 2
         pygame.draw.rect(self.screen, (30, 50, 30), (box_x, box_y, box_w, box_h), border_radius=8)
-        pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, (box_x, box_y, box_w, box_h), 2, border_radius=8)
+        pygame.draw.rect(
+            self.screen, COLOR_HIGHLIGHT, (box_x, box_y, box_w, box_h), 2, border_radius=8
+        )
 
         title = self.font_large.render("ALL LEVELS COMPLETE!", True, COLOR_HIGHLIGHT)
         title_x = box_x + (box_w - title.get_width()) // 2
@@ -334,11 +378,14 @@ class Renderer:
         elapsed_s = total_time_ms // 1000
         stats_text = self.font_medium.render(
             f"Steps: {total_steps}   Time: {elapsed_s // 60:02d}:{elapsed_s % 60:02d}",
-            True, COLOR_TEXT,
+            True,
+            COLOR_TEXT,
         )
         stats_x = box_x + (box_w - stats_text.get_width()) // 2
         self.screen.blit(stats_text, (stats_x, box_y + 88))
 
-        hint = self.font_small.render("Press any key or click to return to menu...", True, COLOR_TEXT_DIM)
+        hint = self.font_small.render(
+            "Press any key or click to return to menu...", True, COLOR_TEXT_DIM
+        )
         hint_x = box_x + (box_w - hint.get_width()) // 2
         self.screen.blit(hint, (hint_x, box_y + box_h - 30))

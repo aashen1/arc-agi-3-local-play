@@ -1,5 +1,3 @@
-import json
-import os
 import tempfile
 
 import pytest
@@ -28,6 +26,7 @@ class TestRecordingManager:
 
     def test_record_step(self, rm):
         from arcengine import GameAction
+
         rm.start_session("ABCD")
         rm.record_step(GameAction.ACTION1, None, None, 1, 100)
         rm.end_session()
@@ -47,6 +46,7 @@ class TestRecordingManager:
 
     def test_load_recording(self, rm, tmp_dir):
         from arcengine import GameAction
+
         rm.start_session("ABCD")
         rm.record_step(GameAction.ACTION1, None, None, 1, 100)
         rm.end_session()

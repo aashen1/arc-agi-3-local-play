@@ -1,12 +1,17 @@
 import pytest
 
-from human_player.mode import (
-    PlayerMode, AgentType,
-    get_player_mode, set_player_mode,
-    get_agent_type, set_agent_type,
-    get_player_tag, is_human_mode, is_agent_mode,
-)
 from human_player.config import _load_user_config, _save_user_config
+from human_player.mode import (
+    AgentType,
+    PlayerMode,
+    get_agent_type,
+    get_player_mode,
+    get_player_tag,
+    is_agent_mode,
+    is_human_mode,
+    set_agent_type,
+    set_player_mode,
+)
 
 
 @pytest.fixture(autouse=True)

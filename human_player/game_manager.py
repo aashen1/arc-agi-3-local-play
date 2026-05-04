@@ -1,15 +1,19 @@
+import contextlib
 import time
 
-import numpy as np
-from arcengine import GameAction, GameState, FrameDataRaw
 import arc_agi
+import numpy as np
 from arc_agi import OperationMode
+from arcengine import FrameDataRaw, GameAction, GameState
 
+from human_player.game_sync import get_local_game_count, needs_sync, should_show_sync_button
 from human_player.mode import (
-    get_operation_mode, get_player_mode, get_player_tag,
-    is_agent_mode, is_human_mode, PlayerMode,
+    get_operation_mode,
+    get_player_mode,
+    get_player_tag,
+    is_agent_mode,
+    is_human_mode,
 )
-from human_player.game_sync import needs_sync, get_local_game_count, should_show_sync_button
 
 ANIMATION_FPS = 15
 
@@ -28,15 +32,15 @@ class GameManager:
 
         if is_agent_mode():
             from dotenv import load_dotenv
+
             load_dotenv()
-            print(
-                f"[GameManager] Agent mode — loading .env, operation_mode={op_mode.name}")
+            print(f"[GameManager] Agent mode — loading .env, operation_mode={op_mode.name}")
         else:
             if op_mode != OperationMode.OFFLINE:
-                print(
-                    f"[GameManager] WARNING: Human mode should use OFFLINE, got {op_mode.name}")
+                print(f"[GameManager] WARNING: Human mode should use OFFLINE, got {op_mode.name}")
             print(
-                f"[GameManager] Human mode — operation_mode={op_mode.name}, local games: {get_local_game_count()}")
+                f"[GameManager] Human mode — operation_mode={op_mode.name}, local games: {get_local_game_count()}"
+            )
 
         self.arc = arc_agi.Arcade(operation_mode=op_mode)
         self.player_mode = player_mode
@@ -90,14 +94,15 @@ class GameManager:
         else:
             self._scorecard_id = None
             self.env = self.arc.make(game_id)
-            if self.env and hasattr(self.env, 'scorecard_id') and self.env.scorecard_id:
+            if self.env and hasattr(self.env, "scorecard_id") and self.env.scorecard_id:
                 print(
-                    f"[GameManager] INFO: Local scorecard {self.env.scorecard_id} created (OFFLINE mode, data stays local)")
+                    f"[GameManager] INFO: Local scorecard {self.env.scorecard_id} created (OFFLINE mode, data stays local)"
+                )
 
         if self.env is None:
             return False
 
-        self._jump_available = hasattr(self.env, '_game')
+        self._jump_available = hasattr(self.env, "_game")
 
         obs = self.env.reset()
         if obs:
@@ -105,8 +110,9 @@ class GameManager:
             self._start_animation(obs)
         return True
 
-    def execute_action(self, action: GameAction, data: dict = None,
-                       reasoning: dict | str | None = None) -> FrameDataRaw | None:
+    def execute_action(
+        self, action: GameAction, data: dict = None, reasoning: dict | str | None = None
+    ) -> FrameDataRaw | None:
         """Execute a game action and return the observation.
 
         Args:
@@ -157,15 +163,14 @@ class GameManager:
     def close_game(self):
         """Close the current environment and its scorecard (if any)."""
         if is_agent_mode() and self._scorecard_id:
-            try:
+            with contextlib.suppress(Exception):
                 self.arc.close_scorecard(self._scorecard_id)
-            except Exception:
-                pass
             self._scorecard_id = None
         elif is_human_mode():
             if self._scorecard_id is not None:
                 print(
-                    f"[GameManager] INFO: Local scorecard {self._scorecard_id} cleared (OFFLINE mode)")
+                    f"[GameManager] INFO: Local scorecard {self._scorecard_id} cleared (OFFLINE mode)"
+                )
                 self._scorecard_id = None
         self.env = None
         self.game_id = None
@@ -176,6 +181,7 @@ class GameManager:
             return []
         available = self.env.action_space
         from human_player.official_recording import ACTION_ID_MAP
+
         return [ACTION_ID_MAP[a] for a in available if a in ACTION_ID_MAP]
 
     def get_frame_as_2d_list(self) -> list:
@@ -306,7 +312,7 @@ class GameManager:
             return False
 
         try:
-            game = getattr(self.env, '_game', None)
+            game = getattr(self.env, "_game", None)
             if game is None:
                 return False
 
@@ -337,13 +343,13 @@ class GameManager:
             return False
 
     def _update_from_obs(self, obs: FrameDataRaw):
-        if hasattr(obs, 'levels_completed') and obs.levels_completed is not None:
+        if hasattr(obs, "levels_completed") and obs.levels_completed is not None:
             if obs.levels_completed > self.levels_completed:
                 self._prev_levels_completed = self.levels_completed
                 self.levels_completed = obs.levels_completed
             if obs.levels_completed > self.max_levels:
                 self.max_levels = obs.levels_completed
 
-        if hasattr(obs, 'win_levels') and obs.win_levels is not None:
+        if hasattr(obs, "win_levels") and obs.win_levels is not None:
             if obs.win_levels > self.max_levels:
                 self.max_levels = obs.win_levels

@@ -1,11 +1,11 @@
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from arcengine import GameAction, FrameDataRaw
+from arcengine import FrameDataRaw, GameAction
 
 from human_player.config import RECORDINGS_DIR
-from human_player.mode import get_player_mode, get_agent_type, PlayerMode
+from human_player.mode import PlayerMode, get_agent_type, get_player_mode
 
 
 class RecordingManager:
@@ -46,8 +46,14 @@ class RecordingManager:
 
         return self.current_session_id
 
-    def record_step(self, action: GameAction, data: dict | None,
-                    obs: FrameDataRaw | None, step_count: int, elapsed_ms: int):
+    def record_step(
+        self,
+        action: GameAction,
+        data: dict | None,
+        obs: FrameDataRaw | None,
+        step_count: int,
+        elapsed_ms: int,
+    ):
         """Write one step record to the current session file.
 
         Args:
@@ -63,13 +69,13 @@ class RecordingManager:
         self._step_count += 1
         player_mode = get_player_mode()
         record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "step": step_count,
             "action": action.name,
             "action_data": data or {},
             "frame_state": obs.state.name if obs else "UNKNOWN",
             "levels_completed": obs.levels_completed if obs else 0,
-            "score": getattr(obs, 'score', 0) or 0,
+            "score": getattr(obs, "score", 0) or 0,
             "elapsed_ms": elapsed_ms,
             "player_type": player_mode.value,
             "session_id": self.current_session_id,
@@ -112,14 +118,16 @@ class RecordingManager:
             filepath = os.path.join(RECORDINGS_DIR, filename)
             stat = os.stat(filepath)
             parts = filename.replace(".jsonl", "").split("_", 1)
-            results.append({
-                "filename": filename,
-                "filepath": filepath,
-                "game_id": parts[0] if parts else "unknown",
-                "session_id": filename.replace(".jsonl", ""),
-                "size_bytes": stat.st_size,
-                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-            })
+            results.append(
+                {
+                    "filename": filename,
+                    "filepath": filepath,
+                    "game_id": parts[0] if parts else "unknown",
+                    "session_id": filename.replace(".jsonl", ""),
+                    "size_bytes": stat.st_size,
+                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                }
+            )
         return results
 
     def load_recording(self, filepath: str) -> list[dict]:
@@ -133,7 +141,7 @@ class RecordingManager:
         """
         records = []
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if line:

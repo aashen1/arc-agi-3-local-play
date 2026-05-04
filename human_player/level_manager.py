@@ -1,8 +1,8 @@
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from human_player.config import PROGRESS_FILE, DATA_DIR
+from human_player.config import PROGRESS_FILE
 
 
 class LevelManager:
@@ -28,8 +28,7 @@ class LevelManager:
             return {"game_id": game_id, "levels": {}, "total_levels": 0}
         return games[game_id]
 
-    def update_level_status(self, game_id: str, level_index: int,
-                            steps: int, time_ms: int):
+    def update_level_status(self, game_id: str, level_index: int, steps: int, time_ms: int):
         """Record a level completion, keeping the best steps and time.
 
         Args:
@@ -63,7 +62,7 @@ class LevelManager:
             "completed": True,
             "best_steps": best_steps,
             "best_time_ms": best_time_ms,
-            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "completed_at": datetime.now(UTC).isoformat(),
             "attempts": existing.get("attempts", 0) + 1,
         }
         self._save_progress()
@@ -91,9 +90,7 @@ class LevelManager:
         levels = game.get("levels", {})
         if not levels:
             return 0
-        completed_indices = sorted(
-            int(k) for k, v in levels.items() if v.get("completed")
-        )
+        completed_indices = sorted(int(k) for k, v in levels.items() if v.get("completed"))
         if not completed_indices:
             return 0
         next_level = completed_indices[-1] + 1
@@ -170,7 +167,7 @@ class LevelManager:
     def _load_progress(self) -> dict:
         if os.path.exists(self._progress_file):
             try:
-                with open(self._progress_file, "r", encoding="utf-8") as f:
+                with open(self._progress_file, encoding="utf-8") as f:
                     return json.load(f)
             except (json.JSONDecodeError, OSError) as e:
                 print(f"[LevelManager] Failed to load progress: {e}")
@@ -179,7 +176,7 @@ class LevelManager:
     def _save_progress(self):
         try:
             os.makedirs(os.path.dirname(self._progress_file), exist_ok=True)
-            self.progress["last_updated"] = datetime.now(timezone.utc).isoformat()
+            self.progress["last_updated"] = datetime.now(UTC).isoformat()
             with open(self._progress_file, "w", encoding="utf-8") as f:
                 json.dump(self.progress, f, ensure_ascii=False, indent=2)
         except OSError as e:

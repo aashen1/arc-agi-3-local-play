@@ -1,12 +1,14 @@
 import pytest
 
 from human_player.config import (
-    get_keymap_scheme, set_keymap_scheme,
-    get_view_mode, set_view_mode,
-    get_sync_mode, set_sync_mode,
-    SYNC_MODE_CONSERVATIVE, SYNC_MODE_AUTO,
-    KEYMAP_WASD, KEYMAP_ARROWS,
-    _load_user_config, _save_user_config,
+    SYNC_MODE_AUTO,
+    SYNC_MODE_CONSERVATIVE,
+    get_keymap_scheme,
+    get_sync_mode,
+    get_view_mode,
+    set_keymap_scheme,
+    set_sync_mode,
+    set_view_mode,
 )
 
 

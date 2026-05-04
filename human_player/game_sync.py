@@ -1,13 +1,13 @@
+import contextlib
 import json
 import os
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import arc_agi
 from arc_agi import OperationMode
 
-from human_player.config import get_sync_mode, SYNC_MODE_CONSERVATIVE, SYNC_MODE_AUTO
-
+from human_player.config import SYNC_MODE_AUTO, SYNC_MODE_CONSERVATIVE, get_sync_mode
 
 ENVIRONMENTS_DIR = os.getenv("ENVIRONMENTS_DIR", "environment_files")
 
@@ -61,9 +61,7 @@ def needs_sync() -> bool:
 def should_show_sync_button() -> bool:
     """Check whether the sync button should be shown in the menu."""
     mode = get_sync_mode()
-    if mode == SYNC_MODE_CONSERVATIVE:
-        return True
-    return False
+    return mode == SYNC_MODE_CONSERVATIVE
 
 
 def sync_games(progress_callback=None) -> SyncResult:
@@ -106,10 +104,8 @@ def sync_games(progress_callback=None) -> SyncResult:
                     include_frame_data=False,
                 )
                 if wrapper is not None:
-                    try:
+                    with contextlib.suppress(Exception):
                         wrapper.close()
-                    except Exception:
-                        pass
                     result.downloaded += 1
                     if progress_callback:
                         progress_callback(i + 1, result.total, base_id, "downloaded")
@@ -122,15 +118,11 @@ def sync_games(progress_callback=None) -> SyncResult:
                 if progress_callback:
                     progress_callback(i + 1, result.total, base_id, f"error: {e}")
 
-        try:
+        with contextlib.suppress(Exception):
             arc.close_scorecard()
-        except Exception:
-            pass
 
     finally:
-        try:
+        with contextlib.suppress(Exception):
             del arc
-        except Exception:
-            pass
 
     return result

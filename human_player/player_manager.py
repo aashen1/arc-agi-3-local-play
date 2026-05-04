@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 
-from human_player.config import PLAYERS_DIR, USER_CONFIG_FILE, _load_user_config, _save_user_config
+from human_player.config import PLAYERS_DIR, _load_user_config, _save_user_config
 
 
 class PlayerManager:
@@ -41,8 +41,7 @@ class PlayerManager:
         if not os.path.exists(PLAYERS_DIR):
             return ["default"]
         players = [
-            d for d in os.listdir(PLAYERS_DIR)
-            if os.path.isdir(os.path.join(PLAYERS_DIR, d))
+            d for d in os.listdir(PLAYERS_DIR) if os.path.isdir(os.path.join(PLAYERS_DIR, d))
         ]
         if "default" not in players:
             players.insert(0, "default")
@@ -125,12 +124,12 @@ class PlayerManager:
 
         if os.path.exists(progress_file):
             try:
-                with open(progress_file, "r", encoding="utf-8") as f:
+                with open(progress_file, encoding="utf-8") as f:
                     progress = json.load(f)
             except (json.JSONDecodeError, OSError):
                 progress = {}
 
-            for game_id, game in progress.get("games", {}).items():
+            for _game_id, game in progress.get("games", {}).items():
                 levels = game.get("levels", {})
                 game_completed = sum(1 for lv in levels.values() if lv.get("completed"))
                 if game_completed > 0 or game.get("total_levels", 0) > 0:
@@ -143,13 +142,17 @@ class PlayerManager:
                         if ts and (last_played is None or ts > last_played):
                             last_played = ts
 
-        records_dir = os.path.join(PLAYERS_DIR, name, "records") if name else os.path.join(PLAYERS_DIR, self._current_player, "records")
+        records_dir = (
+            os.path.join(PLAYERS_DIR, name, "records")
+            if name
+            else os.path.join(PLAYERS_DIR, self._current_player, "records")
+        )
         if os.path.exists(records_dir):
             for fname in os.listdir(records_dir):
                 if not fname.endswith(".json"):
                     continue
                 try:
-                    with open(os.path.join(records_dir, fname), "r", encoding="utf-8") as f:
+                    with open(os.path.join(records_dir, fname), encoding="utf-8") as f:
                         records = json.load(f)
                     if isinstance(records, list):
                         for r in records:

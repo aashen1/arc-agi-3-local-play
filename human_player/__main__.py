@@ -1,26 +1,36 @@
 import os
 import sys
-import time
 import threading
+import time
 
 import pygame
 from arcengine import GameAction, GameState
 
 from human_player.config import (
-    WINDOW_WIDTH, WINDOW_HEIGHT, DESIGN_WIDTH, DESIGN_HEIGHT,
-    MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT, FPS,
-    get_keymap, get_keymap_scheme, set_keymap_scheme,
-    DATA_DIR, RECORDS_DIR, RECORDINGS_DIR, PLAYERS_DIR,
+    DATA_DIR,
+    DESIGN_HEIGHT,
+    DESIGN_WIDTH,
+    FPS,
+    MIN_WINDOW_HEIGHT,
+    MIN_WINDOW_WIDTH,
+    PLAYERS_DIR,
+    RECORDINGS_DIR,
+    RECORDS_DIR,
+    WINDOW_HEIGHT,
+    WINDOW_WIDTH,
+    get_keymap,
+    get_keymap_scheme,
+    set_keymap_scheme,
 )
 from human_player.game_manager import GameManager
-from human_player.game_sync import sync_games, needs_sync as check_needs_sync
+from human_player.game_sync import sync_games
 from human_player.level_manager import LevelManager
-from human_player.stats_manager import StatsManager
-from human_player.recording import RecordingManager
+from human_player.menu import MenuRenderer
 from human_player.official_recording import OfficialRecordingManager
 from human_player.player_manager import PlayerManager
+from human_player.recording import RecordingManager
 from human_player.renderer import Renderer
-from human_player.menu import MenuRenderer
+from human_player.stats_manager import StatsManager
 
 
 class App:
@@ -31,7 +41,8 @@ class App:
 
         pygame.init()
         self.screen = pygame.display.set_mode(
-            (WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE,
+            (WINDOW_WIDTH, WINDOW_HEIGHT),
+            pygame.RESIZABLE,
         )
         pygame.display.set_caption("ARC-AGI-3 Human Player")
         self.clock = pygame.time.Clock()
@@ -43,10 +54,8 @@ class App:
         self.menu_renderer = MenuRenderer(self.virtual_surface)
 
         self.player_manager = PlayerManager()
-        self.level_manager = LevelManager(
-            progress_file=self.player_manager.get_progress_file())
-        self.stats_manager = StatsManager(
-            records_dir=self.player_manager.get_records_dir())
+        self.level_manager = LevelManager(progress_file=self.player_manager.get_progress_file())
+        self.stats_manager = StatsManager(records_dir=self.player_manager.get_records_dir())
         self.recording_manager = RecordingManager()
         self.official_recording = OfficialRecordingManager(self.player_manager)
 
@@ -85,8 +94,7 @@ class App:
             self.state = "SYNCING"
 
     def _recalc_layout(self):
-        self.scale_factor = min(
-            self.window_w / DESIGN_WIDTH, self.window_h / DESIGN_HEIGHT)
+        self.scale_factor = min(self.window_w / DESIGN_WIDTH, self.window_h / DESIGN_HEIGHT)
         scaled_w = int(DESIGN_WIDTH * self.scale_factor)
         scaled_h = int(DESIGN_HEIGHT * self.scale_factor)
         self.offset_x = (self.window_w - scaled_w) // 2
@@ -99,17 +107,14 @@ class App:
 
     def _switch_player(self, name):
         self.player_manager.set_player(name)
-        self.level_manager.set_progress_file(
-            self.player_manager.get_progress_file())
-        self.stats_manager.set_records_dir(
-            self.player_manager.get_records_dir())
+        self.level_manager.set_progress_file(self.player_manager.get_progress_file())
+        self.stats_manager.set_records_dir(self.player_manager.get_records_dir())
         self.games = self.game_manager.list_games()
 
     def _scale_and_present(self):
         scaled_w = int(DESIGN_WIDTH * self.scale_factor)
         scaled_h = int(DESIGN_HEIGHT * self.scale_factor)
-        scaled = pygame.transform.scale(
-            self.virtual_surface, (scaled_w, scaled_h))
+        scaled = pygame.transform.scale(self.virtual_surface, (scaled_w, scaled_h))
         self.screen.fill((0, 0, 0))
         self.screen.blit(scaled, (self.offset_x, self.offset_y))
         pygame.display.flip()
@@ -135,13 +140,15 @@ class App:
                         self.window_w = max(event.w, MIN_WINDOW_WIDTH)
                         self.window_h = max(event.h, MIN_WINDOW_HEIGHT)
                         self.screen = pygame.display.set_mode(
-                            (self.window_w, self.window_h), pygame.RESIZABLE,
+                            (self.window_w, self.window_h),
+                            pygame.RESIZABLE,
                         )
                         self._recalc_layout()
                         continue
 
-                    if hasattr(event, 'pos') and event.type in (
-                        pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+                    if hasattr(event, "pos") and event.type in (
+                        pygame.MOUSEBUTTONDOWN,
+                        pygame.MOUSEBUTTONUP,
                         pygame.MOUSEMOTION,
                     ):
                         event.pos = self._window_to_design(*event.pos)
@@ -158,6 +165,7 @@ class App:
 
         except Exception:
             import traceback
+
             traceback.print_exc()
             pygame.quit()
             sys.exit(1)
@@ -191,8 +199,7 @@ class App:
         elif result == "scrollbar_thumb":
             self.menu_renderer.start_scroll_drag(event.pos[1])
         elif result == "scrollbar_track":
-            self.menu_renderer.handle_scrollbar_track_click(
-                event.pos, self.games)
+            self.menu_renderer.handle_scrollbar_track_click(event.pos, self.games)
         elif result == "settings":
             self.state = "SETTINGS"
         elif result == "stats":
@@ -210,22 +217,18 @@ class App:
             self.menu_renderer.navigate_down(self.games)
         elif result == "nav_enter":
             idx = self.menu_renderer.hover_index
-            if 0 <= idx < len(self.games):
-                if self._try_start_game(idx):
-                    return True
+            if 0 <= idx < len(self.games) and self._try_start_game(idx):
+                return True
         elif isinstance(result, str) and result.startswith("game:"):
             idx = int(result.split(":")[1])
-            if idx < len(self.games):
-                if self._try_start_game(idx):
-                    return True
+            if idx < len(self.games) and self._try_start_game(idx):
+                return True
 
         if self.state == "MAIN_MENU":
             if event.type == pygame.MOUSEWHEEL:
                 self.menu_renderer.handle_scroll(event.y, self.games)
-            if event.type == pygame.MOUSEMOTION:
-                if self.menu_renderer.scroll_dragging:
-                    self.menu_renderer.update_scroll_drag(
-                        event.pos[1], self.games)
+            if event.type == pygame.MOUSEMOTION and self.menu_renderer.scroll_dragging:
+                self.menu_renderer.update_scroll_drag(event.pos[1], self.games)
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 self.menu_renderer.end_scroll_drag()
 
@@ -235,9 +238,15 @@ class App:
         """Attempt to start a game from the menu. Returns True if frame should be skipped."""
         game_id = self.games[idx].game_id
         resume = _check_resume(
-            game_id, self.level_manager, self.menu_renderer,
-            self.virtual_surface, self.screen, self.clock,
-            self.scale_factor, self.offset_x, self.offset_y,
+            game_id,
+            self.level_manager,
+            self.menu_renderer,
+            self.virtual_surface,
+            self.screen,
+            self.clock,
+            self.scale_factor,
+            self.offset_x,
+            self.offset_y,
             self.game_manager._jump_available,
         )
         if resume is None:
@@ -257,8 +266,7 @@ class App:
         return False
 
     def _process_settings_event(self, event):
-        result = _handle_settings_event(
-            event, self.menu_renderer, self.keymap_scheme)
+        result = _handle_settings_event(event, self.menu_renderer, self.keymap_scheme)
         if result == "back":
             self.state = "MAIN_MENU"
         elif result in ("wasd", "arrows"):
@@ -266,6 +274,7 @@ class App:
             set_keymap_scheme(result)
         elif result in ("conservative", "auto"):
             from human_player.config import set_sync_mode
+
             set_sync_mode(result)
             self._refresh_game_manager()
         elif result == "download":
@@ -299,8 +308,11 @@ class App:
     def _process_player_select_event(self, event):
         if self.delete_target:
             result = _handle_delete_confirm_event(
-                event, self.menu_renderer, self.delete_target,
-                self.delete_confirm_text, self.delete_confirm_active,
+                event,
+                self.menu_renderer,
+                self.delete_target,
+                self.delete_confirm_text,
+                self.delete_confirm_active,
             )
             if result == "cancel_delete":
                 self.delete_target = None
@@ -320,7 +332,9 @@ class App:
                 self.delete_confirm_active = False
         else:
             result = _handle_player_event(
-                event, self.menu_renderer, self.player_manager,
+                event,
+                self.menu_renderer,
+                self.player_manager,
                 self.player_input_text,
             )
             if result == "back":
@@ -369,14 +383,16 @@ class App:
                 pass
             else:
                 action_result = _handle_game_event(
-                    event, self.game_manager, self.renderer,
+                    event,
+                    self.game_manager,
+                    self.renderer,
                 )
 
         if action_result == "exit":
             final_state = "NOT_FINISHED"
             if self.game_manager.env:
                 obs = self.game_manager.env.observation_space
-                if obs and hasattr(obs, 'state'):
+                if obs and hasattr(obs, "state"):
                     final_state = obs.state.name
             self.recording_manager.end_session()
             if self.official_recording.is_recording:
@@ -388,25 +404,31 @@ class App:
 
         if action_result and self.overlay_state is None:
             action, data = action_result
-            available = (self.game_manager.env.action_space
-                         if self.game_manager.env else [])
+            available = self.game_manager.env.action_space if self.game_manager.env else []
             if action in available or action == GameAction.RESET:
                 obs = self.game_manager.execute_action(action, data)
                 self.recording_manager.record_step(
-                    action, data, obs,
+                    action,
+                    data,
+                    obs,
                     self.game_manager.step_count,
                     self.game_manager.get_elapsed_ms(),
                 )
                 self.official_recording.record_step(
-                    action, data, obs, available,
+                    action,
+                    data,
+                    obs,
+                    available,
                 )
 
                 if self.game_manager.did_level_up():
                     self.current_level = self.game_manager.levels_completed - 1
                     _handle_win(
-                        self.game_manager, self.level_manager,
+                        self.game_manager,
+                        self.level_manager,
                         self.stats_manager,
-                        self.current_level, self.session_id,
+                        self.current_level,
+                        self.session_id,
                     )
                     self.current_level = self.game_manager.levels_completed
                     self.game_over_recorded = False
@@ -414,8 +436,10 @@ class App:
                 if obs and obs.state == GameState.WIN:
                     self.win_elapsed_ms = self.game_manager.get_elapsed_ms()
                     self.win_step_count = self.game_manager.step_count
-                    if (self.game_manager.max_levels > 0
-                            and self.game_manager.levels_completed >= self.game_manager.max_levels):
+                    if (
+                        self.game_manager.max_levels > 0
+                        and self.game_manager.levels_completed >= self.game_manager.max_levels
+                    ):
                         self.total_elapsed_ms = self.game_manager.get_total_elapsed_ms()
                         self.total_steps = self.game_manager.total_steps
                         self.overlay_state = "all_complete"
@@ -425,10 +449,12 @@ class App:
                 elif obs and obs.state == GameState.GAME_OVER:
                     if not self.game_over_recorded:
                         self.stats_manager.record_attempt(
-                            self.game_manager.game_id, self.current_level,
+                            self.game_manager.game_id,
+                            self.current_level,
                             self.game_manager.step_count,
                             self.game_manager.get_elapsed_ms(),
-                            "GAME_OVER", self.session_id,
+                            "GAME_OVER",
+                            self.session_id,
                         )
                         self.game_over_recorded = True
                     self.overlay_state = "game_over"
@@ -455,8 +481,12 @@ class App:
                 self.overlay_state = None
                 return True
 
-        if (self.overlay_state and not overlay_just_set
-                and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1):
+        if (
+            self.overlay_state
+            and not overlay_just_set
+            and event.type == pygame.MOUSEBUTTONDOWN
+            and event.button == 1
+        ):
             if self.overlay_state == "win":
                 self.overlay_state = None
                 self.game_manager.step_count = 0
@@ -512,7 +542,9 @@ class App:
     def _render_main_menu(self, mouse_pos):
         self.menu_renderer.handle_main_menu_hover(mouse_pos)
         self.menu_renderer.draw_main_menu(
-            self.games, self.level_manager, self.keymap_scheme,
+            self.games,
+            self.level_manager,
+            self.keymap_scheme,
             self.player_manager.get_current_player(),
         )
 
@@ -526,21 +558,20 @@ class App:
                 app.sync_progress = [current, total, gid, status]
 
             def _run_sync():
-                app.sync_result = sync_games(
-                    progress_callback=_on_sync_progress)
+                app.sync_result = sync_games(progress_callback=_on_sync_progress)
 
-            self.sync_thread = threading.Thread(
-                target=_run_sync, daemon=True)
+            self.sync_thread = threading.Thread(target=_run_sync, daemon=True)
             self.sync_thread.start()
 
-        if (self.sync_thread and not self.sync_thread.is_alive()
-                and self.sync_result is not None):
+        if self.sync_thread and not self.sync_thread.is_alive() and self.sync_result is not None:
             self.state = "SYNC_COMPLETE"
 
         if self.sync_progress:
             self.menu_renderer.draw_sync_progress(
-                self.sync_progress[0], self.sync_progress[1],
-                self.sync_progress[2], self.sync_progress[3],
+                self.sync_progress[0],
+                self.sync_progress[1],
+                self.sync_progress[2],
+                self.sync_progress[3],
             )
 
     def _render_sync_complete(self):
@@ -548,13 +579,13 @@ class App:
 
     def _render_settings(self):
         from human_player.config import get_sync_mode
+
         self.menu_renderer.draw_settings(
-            self.keymap_scheme, sync_mode=get_sync_mode(),
-            show_sync_button=self.show_sync_button)
+            self.keymap_scheme, sync_mode=get_sync_mode(), show_sync_button=self.show_sync_button
+        )
 
     def _render_stats(self):
-        self.menu_renderer.draw_stats(
-            self.games, self.level_manager, self.stats_manager)
+        self.menu_renderer.draw_stats(self.games, self.level_manager, self.stats_manager)
 
     def _render_player_select(self):
         players = self.player_manager.list_players()
@@ -562,48 +593,59 @@ class App:
         for p in players:
             player_metadata[p] = self.player_manager.get_player_metadata(p)
         self.menu_renderer.draw_player_select(
-            players, self.player_manager.get_current_player(),
-            player_metadata, self.player_input_text,
+            players,
+            self.player_manager.get_current_player(),
+            player_metadata,
+            self.player_input_text,
             self.player_input_active,
         )
         if self.delete_target:
             meta = player_metadata.get(self.delete_target, {})
             self.menu_renderer.draw_delete_confirm(
-                self.delete_target, meta,
-                self.delete_confirm_text, self.delete_confirm_active,
+                self.delete_target,
+                meta,
+                self.delete_confirm_text,
+                self.delete_confirm_active,
             )
 
     def _render_game(self, mouse_pos):
         self.game_manager.advance_animation()
         frame = self.game_manager.get_current_frame()
         grid_pos = self.renderer.pixel_to_grid(*mouse_pos)
-        available = (self.game_manager.env.action_space
-                     if self.game_manager.env else [])
+        available = self.game_manager.env.action_space if self.game_manager.env else []
 
         self.renderer.draw_frame(
-            frame, grid_pos,
+            frame,
+            grid_pos,
             self.game_manager.step_count,
             self.game_manager.get_elapsed_ms(),
             self.game_manager.levels_completed,
             self.game_manager.max_levels,
-            available, self.keymap_scheme, self.game_manager.game_id,
+            available,
+            self.keymap_scheme,
+            self.game_manager.game_id,
         )
 
         if self.overlay_state == "win":
             best_steps = self.level_manager.get_best_steps(
-                self.game_manager.game_id, self.current_level)
+                self.game_manager.game_id, self.current_level
+            )
             best_time = self.level_manager.get_best_time_ms(
-                self.game_manager.game_id, self.current_level)
+                self.game_manager.game_id, self.current_level
+            )
             self.renderer.draw_overlay_win(
-                self.current_level, self.win_step_count,
-                self.win_elapsed_ms, best_steps, best_time,
+                self.current_level,
+                self.win_step_count,
+                self.win_elapsed_ms,
+                best_steps,
+                best_time,
             )
         elif self.overlay_state == "game_over":
-            self.renderer.draw_overlay_game_over(
-                self.game_manager.step_count)
+            self.renderer.draw_overlay_game_over(self.game_manager.step_count)
         elif self.overlay_state == "all_complete":
             self.renderer.draw_overlay_all_complete(
-                self.game_manager.game_id, self.total_steps,
+                self.game_manager.game_id,
+                self.total_steps,
                 self.total_elapsed_ms,
             )
 
@@ -665,7 +707,9 @@ def _handle_player_event(event, menu_renderer, player_manager, input_text):
             new_text = input_text + event.unicode
             return f"input:{new_text}"
     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-        if hasattr(menu_renderer, 'input_rect') and menu_renderer.input_rect.collidepoint(event.pos):
+        if hasattr(menu_renderer, "input_rect") and menu_renderer.input_rect.collidepoint(
+            event.pos
+        ):
             return "input_focus"
         result = menu_renderer.handle_player_click(event.pos, players)
         if result:
@@ -689,7 +733,9 @@ def _handle_delete_confirm_event(event, menu_renderer, target_name, confirm_text
             new_text = confirm_text + event.unicode
             return f"del_input:{new_text}"
     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-        if hasattr(menu_renderer, 'delete_input_rect') and menu_renderer.delete_input_rect.collidepoint(event.pos):
+        if hasattr(
+            menu_renderer, "delete_input_rect"
+        ) and menu_renderer.delete_input_rect.collidepoint(event.pos):
             return "del_input_focus"
         for name, rect in menu_renderer.button_rects.items():
             if rect.collidepoint(event.pos):
@@ -728,9 +774,18 @@ def _handle_game_event(event, game_manager, renderer):
     return False
 
 
-def _check_resume(game_id, level_manager, menu_renderer, virtual_surface,
-                  screen, clock, scale_factor, offset_x, offset_y,
-                  jump_available=True):
+def _check_resume(
+    game_id,
+    level_manager,
+    menu_renderer,
+    virtual_surface,
+    screen,
+    clock,
+    scale_factor,
+    offset_x,
+    offset_y,
+    jump_available=True,
+):
     """Show a resume prompt if the player has progress in the given game."""
     completed = level_manager.get_completed_count(game_id)
     next_level = level_manager.get_next_uncompleted_level(game_id)
@@ -743,9 +798,18 @@ def _check_resume(game_id, level_manager, menu_renderer, virtual_surface,
         current_level = level_manager.get_current_level(game_id)
         has_playthrough = current_level is not None and current_level < total
         return _show_completed_prompt(
-            game_id, total, current_level, has_playthrough,
-            level_manager, menu_renderer, virtual_surface,
-            screen, clock, scale_factor, offset_x, offset_y,
+            game_id,
+            total,
+            current_level,
+            has_playthrough,
+            level_manager,
+            menu_renderer,
+            virtual_surface,
+            screen,
+            clock,
+            scale_factor,
+            offset_x,
+            offset_y,
             jump_available,
         )
 
@@ -762,8 +826,9 @@ def _check_resume(game_id, level_manager, menu_renderer, virtual_surface,
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if hasattr(event, 'pos') and event.type in (
-                pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+            if hasattr(event, "pos") and event.type in (
+                pygame.MOUSEBUTTONDOWN,
+                pygame.MOUSEBUTTONUP,
                 pygame.MOUSEMOTION,
             ):
                 dx = (event.pos[0] - offset_x) / scale_factor
@@ -790,10 +855,21 @@ def _check_resume(game_id, level_manager, menu_renderer, virtual_surface,
         clock.tick(FPS)
 
 
-def _show_completed_prompt(game_id, total, current_level, has_playthrough,
-                           level_manager, menu_renderer, virtual_surface,
-                           screen, clock, scale_factor, offset_x, offset_y,
-                           jump_available=True):
+def _show_completed_prompt(
+    game_id,
+    total,
+    current_level,
+    has_playthrough,
+    level_manager,
+    menu_renderer,
+    virtual_surface,
+    screen,
+    clock,
+    scale_factor,
+    offset_x,
+    offset_y,
+    jump_available=True,
+):
     def _scale_and_present():
         scaled_w = int(DESIGN_WIDTH * scale_factor)
         scaled_h = int(DESIGN_HEIGHT * scale_factor)
@@ -807,8 +883,9 @@ def _show_completed_prompt(game_id, total, current_level, has_playthrough,
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if hasattr(event, 'pos') and event.type in (
-                pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+            if hasattr(event, "pos") and event.type in (
+                pygame.MOUSEBUTTONDOWN,
+                pygame.MOUSEBUTTONUP,
                 pygame.MOUSEMOTION,
             ):
                 dx = (event.pos[0] - offset_x) / scale_factor
@@ -821,9 +898,16 @@ def _show_completed_prompt(game_id, total, current_level, has_playthrough,
                     return "new"
                 if event.key == pygame.K_l and jump_available:
                     result = _show_level_select(
-                        game_id, total, level_manager, menu_renderer,
-                        virtual_surface, screen, clock,
-                        scale_factor, offset_x, offset_y,
+                        game_id,
+                        total,
+                        level_manager,
+                        menu_renderer,
+                        virtual_surface,
+                        screen,
+                        clock,
+                        scale_factor,
+                        offset_x,
+                        offset_y,
                     )
                     if result is not None:
                         return result
@@ -837,9 +921,16 @@ def _show_completed_prompt(game_id, total, current_level, has_playthrough,
                     return "new"
                 if btn == "select" and jump_available:
                     result = _show_level_select(
-                        game_id, total, level_manager, menu_renderer,
-                        virtual_surface, screen, clock,
-                        scale_factor, offset_x, offset_y,
+                        game_id,
+                        total,
+                        level_manager,
+                        menu_renderer,
+                        virtual_surface,
+                        screen,
+                        clock,
+                        scale_factor,
+                        offset_x,
+                        offset_y,
                     )
                     if result is not None:
                         return result
@@ -847,16 +938,28 @@ def _show_completed_prompt(game_id, total, current_level, has_playthrough,
                     return None
 
         menu_renderer.draw_completed_prompt(
-            game_id, total, current_level, has_playthrough,
+            game_id,
+            total,
+            current_level,
+            has_playthrough,
             jump_available=jump_available,
         )
         _scale_and_present()
         clock.tick(FPS)
 
 
-def _show_level_select(game_id, total_levels, level_manager, menu_renderer,
-                       virtual_surface, screen, clock,
-                       scale_factor, offset_x, offset_y):
+def _show_level_select(
+    game_id,
+    total_levels,
+    level_manager,
+    menu_renderer,
+    virtual_surface,
+    screen,
+    clock,
+    scale_factor,
+    offset_x,
+    offset_y,
+):
     menu_renderer.level_input_text = ""
     menu_renderer.level_input_active = False
 
@@ -885,8 +988,9 @@ def _show_level_select(game_id, total_levels, level_manager, menu_renderer,
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if hasattr(event, 'pos') and event.type in (
-                pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+            if hasattr(event, "pos") and event.type in (
+                pygame.MOUSEBUTTONDOWN,
+                pygame.MOUSEBUTTONUP,
                 pygame.MOUSEMOTION,
             ):
                 dx = (event.pos[0] - offset_x) / scale_factor
@@ -896,8 +1000,7 @@ def _show_level_select(game_id, total_levels, level_manager, menu_renderer,
                 if event.key == pygame.K_ESCAPE:
                     return None
                 if event.key == pygame.K_RETURN:
-                    level_idx = _try_parse_level(
-                        menu_renderer.level_input_text)
+                    level_idx = _try_parse_level(menu_renderer.level_input_text)
                     if level_idx is not None:
                         return f"level:{level_idx}"
                 if event.key == pygame.K_BACKSPACE:
@@ -908,7 +1011,9 @@ def _show_level_select(game_id, total_levels, level_manager, menu_renderer,
                         menu_renderer.level_input_text += event.unicode
                         menu_renderer.level_input_active = True
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if hasattr(menu_renderer, 'level_input_rect') and menu_renderer.level_input_rect.collidepoint(event.pos):
+                if hasattr(
+                    menu_renderer, "level_input_rect"
+                ) and menu_renderer.level_input_rect.collidepoint(event.pos):
                     menu_renderer.level_input_active = True
                 else:
                     menu_renderer.level_input_active = False
@@ -916,8 +1021,7 @@ def _show_level_select(game_id, total_levels, level_manager, menu_renderer,
                 if result and result.startswith("level:"):
                     return result
                 if result == "go":
-                    level_idx = _try_parse_level(
-                        menu_renderer.level_input_text)
+                    level_idx = _try_parse_level(menu_renderer.level_input_text)
                     if level_idx is not None:
                         return f"level:{level_idx}"
                 if result == "back":
@@ -948,33 +1052,39 @@ def _start_game(game_id, resume, game_manager, level_manager):
         level_index = int(resume.split(":")[1])
         game_manager.jump_to_level(level_index)
         level_manager.set_current_level(game_id, level_index)
-    elif resume == "new":
-        if level_manager.is_fully_completed(game_id):
-            level_manager.set_current_level(game_id, 0)
+    elif resume == "new" and level_manager.is_fully_completed(game_id):
+        level_manager.set_current_level(game_id, 0)
     return True
 
 
-def _handle_win(game_manager, level_manager, stats_manager,
-                level_index, session_id):
+def _handle_win(game_manager, level_manager, stats_manager, level_index, session_id):
     """Handle the level-complete event: save progress, record stats."""
     steps = game_manager.step_count
     time_ms = game_manager.get_elapsed_ms()
 
     level_manager.update_level_status(
-        game_manager.game_id, level_index, steps, time_ms,
+        game_manager.game_id,
+        level_index,
+        steps,
+        time_ms,
     )
 
     if game_manager.max_levels > 0:
-        level_manager.update_total_levels(
-            game_manager.game_id, game_manager.max_levels)
+        level_manager.update_total_levels(game_manager.game_id, game_manager.max_levels)
 
     if level_manager.is_fully_completed(game_manager.game_id):
         level_manager.set_current_level(
-            game_manager.game_id, game_manager.levels_completed,
+            game_manager.game_id,
+            game_manager.levels_completed,
         )
 
     stats_manager.record_attempt(
-        game_manager.game_id, level_index, steps, time_ms, "WIN", session_id,
+        game_manager.game_id,
+        level_index,
+        steps,
+        time_ms,
+        "WIN",
+        session_id,
     )
 
 

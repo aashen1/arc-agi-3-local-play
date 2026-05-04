@@ -57,7 +57,11 @@ class OfficialRecordingManager:
         recordings_dir = self._pm.get_recordings_dir(game_id)
         filename = f"{game_id}.{self._guid}.recording.jsonl"
         filepath = os.path.join(recordings_dir, filename)
-        self._file = open(filepath, "w", encoding="utf-8")
+        try:
+            self._file = open(filepath, "w", encoding="utf-8")
+        except OSError as e:
+            print(f"[OfficialRecording] Failed to open recording file: {e}")
+            self._file = None
 
         return self._guid
 
@@ -181,8 +185,11 @@ class OfficialRecordingManager:
         recordings_dir = self._pm.get_recordings_dir(game_id)
         index_path = os.path.join(recordings_dir, "index.json")
         if os.path.exists(index_path):
-            with open(index_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+            try:
+                with open(index_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, OSError) as e:
+                print(f"[OfficialRecording] Failed to load index: {e}")
         return {
             "game_id": game_id,
             "player": self._pm.get_current_player(),
@@ -265,5 +272,8 @@ class OfficialRecordingManager:
         sessions.append(session_entry)
         index["sessions"] = sessions
 
-        with open(index_path, "w", encoding="utf-8") as f:
-            json.dump(index, f, ensure_ascii=False, indent=2)
+        try:
+            with open(index_path, "w", encoding="utf-8") as f:
+                json.dump(index, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            print(f"[OfficialRecording] Failed to save index: {e}")

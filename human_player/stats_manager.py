@@ -16,22 +16,25 @@ class StatsManager:
 
     def record_attempt(self, game_id: str, level_index: int, steps: int,
                        time_ms: int, result: str, session_id: str):
-        os.makedirs(self._records_dir, exist_ok=True)
-        filepath = os.path.join(self._records_dir, f"{game_id}.json")
+        try:
+            os.makedirs(self._records_dir, exist_ok=True)
+            filepath = os.path.join(self._records_dir, f"{game_id}.json")
 
-        records = self._load_records(filepath)
+            records = self._load_records(filepath)
 
-        records.append({
-            "level_index": level_index,
-            "session_id": session_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "steps": steps,
-            "time_ms": time_ms,
-            "result": result,
-        })
+            records.append({
+                "level_index": level_index,
+                "session_id": session_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "steps": steps,
+                "time_ms": time_ms,
+                "result": result,
+            })
 
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(records, f, ensure_ascii=False, indent=2)
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(records, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            print(f"[StatsManager] Failed to record attempt: {e}")
 
     def get_best_record(self, game_id: str, level_index: int) -> dict | None:
         records = self._get_all_records(game_id)
@@ -75,9 +78,12 @@ class StatsManager:
 
     def _load_records(self, filepath: str) -> list[dict]:
         if os.path.exists(filepath):
-            with open(filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    return data
-                return data.get("records", [])
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        return data
+                    return data.get("records", [])
+            except (json.JSONDecodeError, OSError) as e:
+                print(f"[StatsManager] Failed to load records: {e}")
         return []

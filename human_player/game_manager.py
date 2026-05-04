@@ -26,8 +26,10 @@ class GameManager:
                 f"[GameManager] Agent mode — loading .env, operation_mode={op_mode.name}")
         else:
             if op_mode != OperationMode.OFFLINE:
-                print(f"[GameManager] WARNING: Human mode should use OFFLINE, got {op_mode.name}")
-            print(f"[GameManager] Human mode — operation_mode={op_mode.name}, local games: {get_local_game_count()}")
+                print(
+                    f"[GameManager] WARNING: Human mode should use OFFLINE, got {op_mode.name}")
+            print(
+                f"[GameManager] Human mode — operation_mode={op_mode.name}, local games: {get_local_game_count()}")
 
         self.arc = arc_agi.Arcade(operation_mode=op_mode)
         self.player_mode = player_mode
@@ -72,7 +74,8 @@ class GameManager:
             self._scorecard_id = None
             self.env = self.arc.make(game_id)
             if self.env and hasattr(self.env, 'scorecard_id') and self.env.scorecard_id:
-                print(f"[GameManager] WARNING: Human mode created scorecard {self.env.scorecard_id} — this should not happen in OFFLINE mode")
+                print(
+                    f"[GameManager] INFO: Local scorecard {self.env.scorecard_id} created (OFFLINE mode, data stays local)")
 
         if self.env is None:
             return False
@@ -130,7 +133,8 @@ class GameManager:
             self._scorecard_id = None
         elif is_human_mode():
             if self._scorecard_id is not None:
-                print(f"[GameManager] WARNING: Human mode had scorecard_id={self._scorecard_id} — clearing without closing")
+                print(
+                    f"[GameManager] INFO: Local scorecard {self._scorecard_id} cleared (OFFLINE mode)")
                 self._scorecard_id = None
         self.env = None
         self.game_id = None
@@ -241,32 +245,36 @@ class GameManager:
         if self.env is None:
             return False
 
-        game = getattr(self.env, '_game', None)
-        if game is None:
+        try:
+            game = getattr(self.env, '_game', None)
+            if game is None:
+                return False
+
+            total = len(game._levels)
+            if level_index < 0 or level_index >= total:
+                return False
+
+            game.set_level(level_index)
+            game._state = GameState.NOT_FINISHED
+            game._score = level_index
+            game._action_count = 0
+
+            self.levels_completed = level_index
+            self._prev_levels_completed = level_index
+            self.step_count = 0
+            self.level_start_time = time.time()
+
+            action = GameAction.ACTION1
+            obs = self.env.step(action)
+            if obs:
+                self.step_count = 1
+                self.total_steps += 1
+                self._update_from_obs(obs)
+                return True
             return False
-
-        total = len(game._levels)
-        if level_index < 0 or level_index >= total:
+        except (AttributeError, IndexError, TypeError) as e:
+            print(f"[GameManager] jump_to_level failed: {e}")
             return False
-
-        game.set_level(level_index)
-        game._state = GameState.NOT_FINISHED
-        game._score = level_index
-        game._action_count = 0
-
-        self.levels_completed = level_index
-        self._prev_levels_completed = level_index
-        self.step_count = 0
-        self.level_start_time = time.time()
-
-        action = GameAction.ACTION1
-        obs = self.env.step(action)
-        if obs:
-            self.step_count = 1
-            self.total_steps += 1
-            self._update_from_obs(obs)
-            return True
-        return False
 
     def _update_from_obs(self, obs: FrameDataRaw):
         if hasattr(obs, 'levels_completed') and obs.levels_completed is not None:

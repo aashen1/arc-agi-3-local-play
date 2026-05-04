@@ -24,7 +24,11 @@ class RecordingManager:
 
         filename = f"{self.current_session_id}.jsonl"
         filepath = os.path.join(RECORDINGS_DIR, filename)
-        self.current_file = open(filepath, "a", encoding="utf-8")
+        try:
+            self.current_file = open(filepath, "a", encoding="utf-8")
+        except OSError as e:
+            print(f"[RecordingManager] Failed to open recording file: {e}")
+            self.current_file = None
 
         return self.current_session_id
 
@@ -87,9 +91,12 @@ class RecordingManager:
 
     def load_recording(self, filepath: str) -> list[dict]:
         records = []
-        with open(filepath, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    records.append(json.loads(line))
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        records.append(json.loads(line))
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"[RecordingManager] Failed to load recording: {e}")
         return records

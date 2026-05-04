@@ -135,12 +135,18 @@ class LevelManager:
 
     def _load_progress(self) -> dict:
         if os.path.exists(self._progress_file):
-            with open(self._progress_file, "r", encoding="utf-8") as f:
-                return json.load(f)
+            try:
+                with open(self._progress_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, OSError) as e:
+                print(f"[LevelManager] Failed to load progress: {e}")
         return {"version": "1.0", "games": {}}
 
     def _save_progress(self):
-        os.makedirs(os.path.dirname(self._progress_file), exist_ok=True)
-        self.progress["last_updated"] = datetime.now(timezone.utc).isoformat()
-        with open(self._progress_file, "w", encoding="utf-8") as f:
-            json.dump(self.progress, f, ensure_ascii=False, indent=2)
+        try:
+            os.makedirs(os.path.dirname(self._progress_file), exist_ok=True)
+            self.progress["last_updated"] = datetime.now(timezone.utc).isoformat()
+            with open(self._progress_file, "w", encoding="utf-8") as f:
+                json.dump(self.progress, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            print(f"[LevelManager] Failed to save progress: {e}")

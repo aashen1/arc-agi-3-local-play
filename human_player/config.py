@@ -134,28 +134,42 @@ def _save_user_config(cfg: dict):
 
 
 def get_keymap_scheme() -> str:
+    """Return the current keymap scheme name, either "wasd" or "arrows"."""
     return _load_user_config().get("keymap", "wasd")
 
 
 def set_keymap_scheme(scheme: str):
+    """Persist the keymap scheme choice.
+
+    Args:
+        scheme: Either "wasd" or "arrows".
+    """
     cfg = _load_user_config()
     cfg["keymap"] = scheme
     _save_user_config(cfg)
 
 
 def get_keymap() -> dict:
+    """Return the pygame key-to-GameAction mapping for the current scheme."""
     return KEYMAP_WASD if get_keymap_scheme() == "wasd" else KEYMAP_ARROWS
 
 
 def get_key_labels() -> dict:
+    """Return the GameAction-to-display-label mapping for the current scheme."""
     return WASD_KEY_LABELS if get_keymap_scheme() == "wasd" else ARROW_KEY_LABELS
 
 
 def get_view_mode() -> str:
+    """Return the current grid view mode, either "grid" or "list"."""
     return _load_user_config().get("view_mode", "grid")
 
 
 def set_view_mode(mode: str):
+    """Persist the grid view mode choice.
+
+    Args:
+        mode: Either "grid" or "list".
+    """
     cfg = _load_user_config()
     cfg["view_mode"] = mode
     _save_user_config(cfg)
@@ -166,6 +180,7 @@ SYNC_MODE_AUTO = "auto"
 
 
 def get_sync_mode() -> str:
+    """Return the current sync mode, defaulting to conservative."""
     mode = _load_user_config().get("sync_mode", SYNC_MODE_CONSERVATIVE)
     if mode not in (SYNC_MODE_CONSERVATIVE, SYNC_MODE_AUTO):
         mode = SYNC_MODE_CONSERVATIVE
@@ -173,6 +188,11 @@ def get_sync_mode() -> str:
 
 
 def set_sync_mode(mode: str):
+    """Persist the sync mode choice.
+
+    Args:
+        mode: Either "conservative" or "auto".
+    """
     cfg = _load_user_config()
     cfg["sync_mode"] = mode
     _save_user_config(cfg)

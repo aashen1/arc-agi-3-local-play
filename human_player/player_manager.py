@@ -6,14 +6,27 @@ from human_player.config import PLAYERS_DIR, USER_CONFIG_FILE, _load_user_config
 
 
 class PlayerManager:
+    """Manage multiple player profiles with isolated data directories.
+
+    Each player gets their own subdirectory under ``data/players/`` containing
+    progress, records, and recordings. The active player is persisted in the
+    shared user config file.
+    """
+
     def __init__(self):
         self._current_player = _load_user_config().get("current_player", "default")
         self._ensure_player_dir(self._current_player)
 
     def get_current_player(self) -> str:
+        """Return the name of the currently active player."""
         return self._current_player
 
     def set_player(self, name: str) -> None:
+        """Switch to a different player profile.
+
+        Args:
+            name: The player name to switch to. Whitespace is trimmed.
+        """
         name = name.strip()
         if not name:
             return
@@ -24,6 +37,7 @@ class PlayerManager:
         _save_user_config(cfg)
 
     def list_players(self) -> list[str]:
+        """Return a sorted list of all player names that have a data directory."""
         if not os.path.exists(PLAYERS_DIR):
             return ["default"]
         players = [
@@ -35,24 +49,57 @@ class PlayerManager:
         return sorted(players)
 
     def get_player_data_dir(self, name: str = None) -> str:
+        """Return the data directory path for a player, creating it if needed.
+
+        Args:
+            name: Player name, defaults to the current player.
+
+        Returns:
+            Absolute path to the player's data directory.
+        """
         name = name or self._current_player
         path = os.path.join(PLAYERS_DIR, name)
         os.makedirs(path, exist_ok=True)
         return path
 
     def get_recordings_dir(self, game_id: str, name: str = None) -> str:
+        """Return the recordings directory for a specific game and player.
+
+        Args:
+            game_id: The 4-character game identifier.
+            name: Player name, defaults to the current player.
+
+        Returns:
+            Absolute path to the recordings directory.
+        """
         base = self.get_player_data_dir(name)
         path = os.path.join(base, "recordings", game_id)
         os.makedirs(path, exist_ok=True)
         return path
 
     def get_records_dir(self, name: str = None) -> str:
+        """Return the stats records directory for a player.
+
+        Args:
+            name: Player name, defaults to the current player.
+
+        Returns:
+            Absolute path to the records directory.
+        """
         base = self.get_player_data_dir(name)
         path = os.path.join(base, "records")
         os.makedirs(path, exist_ok=True)
         return path
 
     def get_progress_file(self, name: str = None) -> str:
+        """Return the progress JSON file path for a player.
+
+        Args:
+            name: Player name, defaults to the current player.
+
+        Returns:
+            Absolute path to the player's ``progress.json``.
+        """
         return os.path.join(self.get_player_data_dir(name), "progress.json")
 
     def _ensure_player_dir(self, name: str) -> None:
@@ -60,6 +107,15 @@ class PlayerManager:
         os.makedirs(path, exist_ok=True)
 
     def get_player_metadata(self, name: str = None) -> dict:
+        """Compute aggregate metadata for a player profile.
+
+        Args:
+            name: Player name, defaults to the current player.
+
+        Returns:
+            Dict with keys: total_levels_completed, total_games_played,
+            total_time_ms, last_played.
+        """
         name = name or self._current_player
         progress_file = self.get_progress_file(name)
         total_levels_completed = 0
@@ -112,6 +168,17 @@ class PlayerManager:
         }
 
     def delete_player(self, name: str) -> bool:
+        """Delete a player profile and all its data.
+
+        Cannot delete the currently active player. Includes path traversal
+        protection to ensure the target directory is inside PLAYERS_DIR.
+
+        Args:
+            name: The player name to delete.
+
+        Returns:
+            True if deletion succeeded, False otherwise.
+        """
         if name == self._current_player:
             return False
         player_dir = os.path.join(PLAYERS_DIR, name)

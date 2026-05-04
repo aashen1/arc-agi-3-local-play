@@ -14,6 +14,8 @@ ENVIRONMENTS_DIR = os.getenv("ENVIRONMENTS_DIR", "environment_files")
 
 @dataclass
 class SyncResult:
+    """Outcome summary of a game synchronization run."""
+
     total: int = 0
     downloaded: int = 0
     skipped: int = 0
@@ -21,10 +23,12 @@ class SyncResult:
 
     @property
     def ok(self) -> bool:
+        """Return True if no games failed to download."""
         return len(self.failed) == 0
 
 
 def get_local_game_ids() -> set[str]:
+    """Scan the local environments directory for already-downloaded game IDs."""
     env_dir = Path(ENVIRONMENTS_DIR)
     if not env_dir.exists():
         return set()
@@ -42,10 +46,12 @@ def get_local_game_ids() -> set[str]:
 
 
 def get_local_game_count() -> int:
+    """Return the number of locally available games."""
     return len(get_local_game_ids())
 
 
 def needs_sync() -> bool:
+    """Check whether a sync should be performed based on config and local state."""
     mode = get_sync_mode()
     if mode == SYNC_MODE_AUTO:
         return True
@@ -53,6 +59,7 @@ def needs_sync() -> bool:
 
 
 def should_show_sync_button() -> bool:
+    """Check whether the sync button should be shown in the menu."""
     mode = get_sync_mode()
     if mode == SYNC_MODE_CONSERVATIVE:
         return True
@@ -60,6 +67,19 @@ def should_show_sync_button() -> bool:
 
 
 def sync_games(progress_callback=None) -> SyncResult:
+    """Download all missing game environments from the ARC-AGI-3 API.
+
+    Iterates over every available environment; games already present locally
+    are skipped. Each new game is instantiated once (which triggers the SDK
+    to cache its data) and then closed.
+
+    Args:
+        progress_callback: Optional callable ``callback(current, total, game_id, status)``
+            invoked after each game is processed.
+
+    Returns:
+        A SyncResult summarizing how many games were downloaded, skipped, or failed.
+    """
     result = SyncResult()
 
     arc = arc_agi.Arcade(operation_mode=OperationMode.NORMAL)

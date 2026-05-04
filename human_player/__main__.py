@@ -24,6 +24,7 @@ from human_player.menu import MenuRenderer
 
 
 def main():
+    """Entry point: initialize Pygame, set up managers, and run the main loop."""
     _ensure_dirs()
 
     pygame.init()
@@ -150,6 +151,35 @@ def main():
                         delete_target = None
                         delete_confirm_text = ""
                         delete_confirm_active = False
+                    elif result == "nav_up":
+                        menu_renderer.navigate_up(games)
+                    elif result == "nav_down":
+                        menu_renderer.navigate_down(games)
+                    elif result == "nav_enter":
+                        idx = menu_renderer.hover_index
+                        if 0 <= idx < len(games):
+                            game_id = games[idx].game_id
+                            resume = _check_resume(
+                                game_id, level_manager, menu_renderer,
+                                virtual_surface, screen, clock,
+                                scale_factor, offset_x, offset_y,
+                            )
+                            if resume is None:
+                                continue
+                            if _start_game(
+                                game_id, resume, game_manager, level_manager,
+                            ):
+                                state = "GAME"
+                                current_level = game_manager.levels_completed
+                                game_over_recorded = False
+                                overlay_state = None
+                                session_id = recording_manager.start_session(game_id)
+                                levels_at_start = game_manager.levels_completed
+                                official_recording.start_session(
+                                    game_id,
+                                    game_manager.max_levels,
+                                    levels_at_start,
+                                )
                     elif isinstance(result, str) and result.startswith("game:"):
                         idx = int(result.split(":")[1])
                         if idx < len(games):
@@ -512,6 +542,7 @@ def main():
 
 
 def _handle_menu_event(event, menu_renderer, games):
+    """Process a single Pygame event while in the MAIN_MENU state."""
     if event.type == pygame.KEYDOWN:
         if event.key == pygame.K_q:
             return None
@@ -521,16 +552,19 @@ def _handle_menu_event(event, menu_renderer, games):
             return "stats"
         if event.key == pygame.K_p:
             return "player"
-        if pygame.K_1 <= event.key <= pygame.K_9:
-            idx = event.key - pygame.K_1
-            if idx < len(games):
-                return f"game:{idx}"
+        if event.key == pygame.K_UP:
+            return "nav_up"
+        if event.key == pygame.K_DOWN:
+            return "nav_down"
+        if event.key == pygame.K_RETURN:
+            return "nav_enter"
     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
         return menu_renderer.handle_main_menu_click(event.pos)
     return False
 
 
 def _handle_settings_event(event, menu_renderer, keymap_scheme):
+    """Process a single Pygame event while in the SETTINGS state."""
     if event.type == pygame.KEYDOWN:
         if event.key == pygame.K_ESCAPE:
             return "back"
@@ -550,6 +584,7 @@ def _handle_settings_event(event, menu_renderer, keymap_scheme):
 
 
 def _handle_player_event(event, menu_renderer, player_manager, input_text):
+    """Process a single Pygame event while in the PLAYER_SELECT state."""
     players = player_manager.list_players()
     if event.type == pygame.KEYDOWN:
         if event.key == pygame.K_ESCAPE:
@@ -600,6 +635,7 @@ def _handle_delete_confirm_event(event, menu_renderer, target_name, confirm_text
 
 
 def _handle_game_event(event, game_manager, renderer):
+    """Process a single Pygame event while in the GAME state."""
     if event.type == pygame.KEYDOWN:
         if event.key == pygame.K_ESCAPE:
             return "exit"
@@ -627,6 +663,7 @@ def _handle_game_event(event, game_manager, renderer):
 
 def _check_resume(game_id, level_manager, menu_renderer, virtual_surface,
                    screen, clock, scale_factor, offset_x, offset_y):
+    """Show a resume prompt if the player has progress in the given game."""
     completed = level_manager.get_completed_count(game_id)
     next_level = level_manager.get_next_uncompleted_level(game_id)
     total = level_manager.get_total_levels(game_id)
@@ -821,6 +858,7 @@ def _show_level_select(game_id, total_levels, level_manager, menu_renderer,
 
 
 def _start_game(game_id, resume, game_manager, level_manager):
+    """Start a game session, optionally resuming from saved progress."""
     if not game_manager.start_game(game_id):
         return False
 
@@ -844,7 +882,8 @@ def _start_game(game_id, resume, game_manager, level_manager):
 
 
 def _handle_win(game_manager, level_manager, stats_manager,
-                session_id, level_index):
+                 recording_manager, official_recording, player_manager):
+    """Handle the level-complete event: save progress, record stats, update recordings."""
     steps = game_manager.step_count
     time_ms = game_manager.get_elapsed_ms()
 
@@ -866,6 +905,7 @@ def _handle_win(game_manager, level_manager, stats_manager,
 
 
 def _ensure_dirs():
+    """Create the data directory structure if it does not exist."""
     for d in [DATA_DIR, RECORDS_DIR, RECORDINGS_DIR, PLAYERS_DIR]:
         os.makedirs(d, exist_ok=True)
 

@@ -52,6 +52,7 @@ class GameManager:
         self.levels_completed = 0
         self.max_levels = 0
         self._prev_levels_completed = 0
+        self._jump_available = True
 
         self._anim_frames: list[np.ndarray] = []
         self._anim_index: int = 0
@@ -95,6 +96,8 @@ class GameManager:
 
         if self.env is None:
             return False
+
+        self._jump_available = hasattr(self.env, '_game')
 
         obs = self.env.reset()
         if obs:
@@ -296,6 +299,10 @@ class GameManager:
             True if the jump succeeded, False otherwise.
         """
         if self.env is None:
+            return False
+
+        if not self._jump_available:
+            print("[GameManager] jump_to_level unavailable: SDK does not expose _game attribute")
             return False
 
         try:

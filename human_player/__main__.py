@@ -165,6 +165,7 @@ def main():
                                 game_id, level_manager, menu_renderer,
                                 virtual_surface, screen, clock,
                                 scale_factor, offset_x, offset_y,
+                                game_manager._jump_available,
                             )
                             if resume is None:
                                 continue
@@ -191,6 +192,7 @@ def main():
                                 game_id, level_manager, menu_renderer,
                                 virtual_surface, screen, clock,
                                 scale_factor, offset_x, offset_y,
+                                game_manager._jump_available,
                             )
                             if resume is None:
                                 continue
@@ -675,7 +677,8 @@ def _handle_game_event(event, game_manager, renderer):
 
 
 def _check_resume(game_id, level_manager, menu_renderer, virtual_surface,
-                  screen, clock, scale_factor, offset_x, offset_y):
+                  screen, clock, scale_factor, offset_x, offset_y,
+                  jump_available=True):
     """Show a resume prompt if the player has progress in the given game."""
     completed = level_manager.get_completed_count(game_id)
     next_level = level_manager.get_next_uncompleted_level(game_id)
@@ -691,6 +694,7 @@ def _check_resume(game_id, level_manager, menu_renderer, virtual_surface,
             game_id, total, current_level, has_playthrough,
             level_manager, menu_renderer, virtual_surface,
             screen, clock, scale_factor, offset_x, offset_y,
+            jump_available,
         )
 
     def _scale_and_present():
@@ -736,7 +740,8 @@ def _check_resume(game_id, level_manager, menu_renderer, virtual_surface,
 
 def _show_completed_prompt(game_id, total, current_level, has_playthrough,
                            level_manager, menu_renderer, virtual_surface,
-                           screen, clock, scale_factor, offset_x, offset_y):
+                           screen, clock, scale_factor, offset_x, offset_y,
+                           jump_available=True):
     def _scale_and_present():
         scaled_w = int(DESIGN_WIDTH * scale_factor)
         scaled_h = int(DESIGN_HEIGHT * scale_factor)
@@ -762,7 +767,7 @@ def _show_completed_prompt(game_id, total, current_level, has_playthrough,
                     return "continue"
                 if event.key == pygame.K_n:
                     return "new"
-                if event.key == pygame.K_l:
+                if event.key == pygame.K_l and jump_available:
                     result = _show_level_select(
                         game_id, total, level_manager, menu_renderer,
                         virtual_surface, screen, clock,
@@ -778,7 +783,7 @@ def _show_completed_prompt(game_id, total, current_level, has_playthrough,
                     return "continue"
                 if btn == "new":
                     return "new"
-                if btn == "select":
+                if btn == "select" and jump_available:
                     result = _show_level_select(
                         game_id, total, level_manager, menu_renderer,
                         virtual_surface, screen, clock,
@@ -791,6 +796,7 @@ def _show_completed_prompt(game_id, total, current_level, has_playthrough,
 
         menu_renderer.draw_completed_prompt(
             game_id, total, current_level, has_playthrough,
+            jump_available=jump_available,
         )
         _scale_and_present()
         clock.tick(FPS)

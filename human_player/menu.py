@@ -803,7 +803,8 @@ class MenuRenderer:
             self.screen.blit(lbl, (rect.x + rect.w // 2 - lbl.get_width() // 2,
                                    rect.y + rect.h // 2 - lbl.get_height() // 2))
 
-    def draw_completed_prompt(self, game_id, total, current_level, has_playthrough):
+    def draw_completed_prompt(self, game_id, total, current_level, has_playthrough,
+                              jump_available=True):
         self.screen.fill(COLOR_BG)
         self.button_rects = {}
 
@@ -839,23 +840,25 @@ class MenuRenderer:
         if has_playthrough:
             cont_rect = pygame.Rect(box_x + 20, btn_y_start, 130, 36)
             new_rect = pygame.Rect(box_x + 160, btn_y_start, 130, 36)
-            sel_rect = pygame.Rect(box_x + 300, btn_y_start, 140, 36)
             back_rect = pygame.Rect(box_x + 140, btn_y_start + 50, 180, 36)
             self.button_rects = {
                 "continue": cont_rect,
                 "new": new_rect,
-                "select": sel_rect,
                 "back": back_rect,
             }
+            if jump_available:
+                sel_rect = pygame.Rect(box_x + 300, btn_y_start, 140, 36)
+                self.button_rects["select"] = sel_rect
         else:
             new_rect = pygame.Rect(box_x + 40, btn_y_start, 170, 36)
-            sel_rect = pygame.Rect(box_x + 240, btn_y_start, 180, 36)
             back_rect = pygame.Rect(box_x + 140, btn_y_start + 50, 180, 36)
             self.button_rects = {
                 "new": new_rect,
-                "select": sel_rect,
                 "back": back_rect,
             }
+            if jump_available:
+                sel_rect = pygame.Rect(box_x + 240, btn_y_start, 180, 36)
+                self.button_rects["select"] = sel_rect
 
         for name, rect in self.button_rects.items():
             pygame.draw.rect(self.screen, COLOR_PANEL, rect, border_radius=4)

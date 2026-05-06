@@ -1,6 +1,6 @@
 # ARC-AGI-3 Human Player Console
 
-> TL;DR: Install [`pixi` ](https://pixi.prefix.dev/latest/installation/), start a terminal at this folder, then `pixi run game` to start.
+> TL;DR: Install [`pixi`](https://pixi.prefix.dev/latest/installation/), start a terminal at this folder, then `pixi run game` to start.
 
 A local desktop client built with [Pygame-ce](https://pyga.me/) for playing [ARC-AGI-3](https://arcprize.org/) games.
 
@@ -38,15 +38,14 @@ It also runs entirely offline after you've start for once and cached all games. 
 ### Install & Run
 
 ```bash
-git clone https://github.com/aashen1/arc-agi-3-human-player.git
-cd arc-agi-3-human-player
+git clone https://github.com/aashen1/arc-agi-3-local-play.git
+cd arc-agi-3-local-play
 
 pixi install
 pixi run game
 ```
 
 No API key needed if you care nothing about **AI AGENT** scoreboard — runs in offline mode by default.
-
 
 > **Note on API key requirements**
 >

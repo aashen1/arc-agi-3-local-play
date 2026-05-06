@@ -126,9 +126,6 @@ class GameManager:
         if self.env is None:
             return None
 
-        if action == GameAction.RESET:
-            return self.reset_level()
-
         kwargs = {}
         if data:
             kwargs["data"] = data
@@ -138,8 +135,12 @@ class GameManager:
         obs = self.env.step(action, **kwargs)
 
         if obs:
-            self.step_count += 1
-            self.total_steps += 1
+            if action != GameAction.RESET:
+                self.step_count += 1
+                self.total_steps += 1
+            else:
+                self.step_count = 0
+                self.level_start_time = time.time()
             self._update_from_obs(obs)
             self._start_animation(obs)
 
@@ -150,12 +151,12 @@ class GameManager:
         if self.env is None:
             return None
 
-        self.step_count = 0
-        self.level_start_time = time.time()
         self._anim_frames = []
         self._anim_index = 0
-        obs = self.env.reset()
+        obs = self.env.step(GameAction.RESET)
         if obs:
+            self.step_count = 0
+            self.level_start_time = time.time()
             self._update_from_obs(obs)
             self._start_animation(obs)
         return obs

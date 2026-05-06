@@ -1,10 +1,14 @@
 # ARC-AGI-3 Human Player Console
 
+> TL;DR: Install [`pixi` ](https://pixi.prefix.dev/latest/installation/), start a terminal at this folder, then `pixi run game` to start.
+
 A local desktop client built with [Pygame-ce](https://pyga.me/) for playing [ARC-AGI-3](https://arcprize.org/) games.
+
+**(Note: The core game engine and logic come from the official `arc-agi` library. This repo is just a simple `pygame-ce` based wrapper that adds UI, console interface, and some small feat like local save. I did not design the games themselves.)**
 
 The official ARC Prize website already offers a web demo with leaderboards for top players tracking minimal step counts, but If you want to play these puzzles as a local game, there seems to be no convenient ways to do it directly. So I built this Pygame-based wrapper that packages the `arc-agi` SDK into something closer to a real mini-game.
 
-It also runs entirely offline, which helps if your network isn't ideal, or if you want to compare human and agent play side by side on the same machine (agent support in future plans).
+It also runs entirely offline after you've start for once and cached all games. No need for internet connection besides downloading game updates.
 
 ## What It Does
 
@@ -43,7 +47,7 @@ pixi run game
 
 No API key needed if you care nothing about **AI AGENT** scoreboard — runs in offline mode by default.
 
-### Agent Mode (In Future Plans)
+### Agent Mode (In Future Plans, not tested yet)
 
 To run in online/agent mode with scorecard tracking:
 

@@ -47,6 +47,13 @@ pixi run game
 
 No API key needed if you care nothing about **AI AGENT** scoreboard — runs in offline mode by default.
 
+
+> **Note on API key requirements**
+>
+> According to the [official documentation](https://docs.arcprize.org/available-games), “By default, three games are available to anonymous users after launch. An API key is required to access the remaining public games.”
+>
+> As of the `v0.1.0` release of this repository (May 6, 2026), all 25 games can still be fetched using an anonymous API key without any configuration. This may change in the future, however; if it does, you will need to [configure an API key](https://arcprize.org/platform) to access all games.
+
 ### Agent Mode (In Future Plans, not tested yet)
 
 To run in online/agent mode with scorecard tracking:

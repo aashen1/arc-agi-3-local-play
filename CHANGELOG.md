@@ -31,4 +31,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for Python 3.12+
 - Cross-platform support (Windows, Linux, macOS)
 
-[0.1.0]: https://github.com/aashen1/arc-agi-3-human-player/releases/tag/v0.1.0
+[0.1.0]: https://github.com/aashen1/arc-agi-3-local-play/releases/tag/v0.1.0

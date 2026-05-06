@@ -327,9 +327,9 @@ packages:
   - requests>=2.31.0
   requires_python: '>=3.12'
 - pypi: ./
-  name: arc-agi-3-human-player
+  name: arc-agi-3-local-play
   version: 0.1.0
-  sha256: 34db3f878b93c68b1e9be1bcc104dbfcb7f42f0f6a0a5b519d851b2896d9428d
+  sha256: 3599c91b4d06db56e4174456252bc4d3745b0dc48b641fdc12639d24e1f76a28
   requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/49/ce/efc5dcb66cacfe4c6ada2ba07ed7a6d9971110c9fd6d540793ed6748a12c/arcengine-0.9.3-py3-none-any.whl
   name: arcengine
